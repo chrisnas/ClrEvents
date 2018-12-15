@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Label="Globals">
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net471</TargetFramework>
+    <!--<TargetFramework>netstandard2.0</TargetFramework>-->
+    <!--<TargetFramework>netcoreapp2.0</TargetFramework>-->
+    <!--<TargetFramework>netcoreapp2.1</TargetFramework>-->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+</Project>
