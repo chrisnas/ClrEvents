@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Xml;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Analysis;
 using Microsoft.Diagnostics.Tracing.Analysis.GC;
@@ -213,8 +214,11 @@ namespace ClrCounters
             if (listeners == null)
                 return;
 
-            listeners(this, new GarbageCollectionArgs(
+            var sizesBefore = GetBeforeGenerationSizes(gc);
+            var sizesAfter = GetAfterGenerationSizes(gc);
+            listeners?.Invoke(this, new GarbageCollectionArgs(
                 _processId,
+                gc.StartRelativeMSec,
                 gc.Number,
                 gc.Generation,
                 (GarbageCollectionReason)gc.Reason,
@@ -224,16 +228,52 @@ namespace ClrCounters
                 gc.HeapStats.GenerationSize1,
                 gc.HeapStats.GenerationSize2,
                 gc.HeapStats.GenerationSize3,
-                gc.SuspendDurationMSec
+                sizesBefore,
+                sizesAfter,
+                gc.SuspendDurationMSec,
+                gc.PauseDurationMSec,
+                gc.BGCFinalPauseMSec
             ));
         }
+
+        private long[] GetBeforeGenerationSizes(TraceGC gc)
+        {
+            var before = true;
+            return GetGenerationSizes(gc, before);
+        }
+        private long[] GetAfterGenerationSizes(TraceGC gc)
+        {
+            var after = false;
+            return GetGenerationSizes(gc, after);
+        }
+
+        private long[] GetGenerationSizes(TraceGC gc, bool before)
+        {
+            var sizes = new long[4];
+            if (gc.PerHeapHistories == null)
+            {
+                return sizes;
+            }
+
+            for (int heap = 0; heap < gc.PerHeapHistories.Count; heap++)
+            {
+                // LOH = 3
+                for (int gen = 0; gen <= 3; gen++)
+                {
+                    sizes[gen] += before ? 
+                        gc.PerHeapHistories[heap].GenData[gen].ObjSpaceBefore:
+                        gc.PerHeapHistories[heap].GenData[gen].ObjSizeAfter;
+                }
+            }
+
+            return sizes;
+        }
+
+
         private void NotifyAllocationTick(GCAllocationTickTraceData info)
         {
             var listeners = AllocationTick;
-            if (listeners == null)
-                return;
-
-            listeners(this, new AllocationTickArgs(
+            listeners?.Invoke(this, new AllocationTickArgs(
                 info.TimeStamp,
                 info.ProcessID,
                 info.AllocationAmount,

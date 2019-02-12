@@ -23,12 +23,14 @@
 
     public struct GarbageCollectionArgs
     {
-        public GarbageCollectionArgs(int processId, 
+        public GarbageCollectionArgs(int processId, double startRelativeMSec,
             int number, int generation, GarbageCollectionReason reason, GarbageCollectionType type, 
             bool isCompacting, long gen0Size, long gen1Size, long gen2Size, long lohSize,
-            double suspensionDuration)
+            long[] objSizeBefore, long[] objSizeAfter,
+            double suspensionDuration, double pauseDuration, double finalPauseDuration)
         {
             ProcessId = processId;
+            StartRelativeMSec = startRelativeMSec;
             Number = number;
             Generation = generation;
             Reason = reason;
@@ -38,11 +40,19 @@
             Gen1Size = gen1Size;
             Gen2Size = gen2Size;
             LOHSize = lohSize;
+            ObjSizeBefore = objSizeBefore;
+            ObjSizeAfter = objSizeAfter;
             SuspensionDuration = suspensionDuration;
+            PauseDuration = pauseDuration;
+            BGCFinalPauseDuration = finalPauseDuration;
         }
 
         public int ProcessId { get; }
 
+        /// <summary>
+        /// Time relative to the start of the trace.  Useful for ordering
+        /// </summary>
+        public double StartRelativeMSec { get; set; }
 
         /// <summary>
         /// Number of collections since the beginning of the application
@@ -71,9 +81,31 @@
         public long LOHSize { get; set; }
 
         /// <summary>
-        /// Applications threads were suspended for this duration
+        /// Size of each generation before the collection (free space is not included)
+        /// </summary>
+        /// <remarks>LOH index is 3 </remarks>
+        public long[] ObjSizeBefore { get; set; }
+
+        /// <summary>
+        /// Size of each generation after the collection (free space is not included)
+        /// </summary>
+        /// <remarks>LOH index is 3 </remarks>
+        public long[] ObjSizeAfter { get; set; }
+
+        /// <summary>
+        /// Time taken by EE to suspend the application threads
         /// </summary>
         public double SuspensionDuration { get; set; }
+
+        /// <summary>
+        /// Initial pause time in GC
+        /// </summary>
+        public double PauseDuration { get; set; }
+
+        /// <summary>
+        /// Final pause time in GC
+        /// </summary>
+        public double BGCFinalPauseDuration { get; set; }
     }
 
 }

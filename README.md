@@ -12,9 +12,11 @@ Part 3: [Monitor Finalizers, contention and threads in your application.](http:/
 
 Part 4: [Spying on .NET Garbage Collector with TraceEvent.](https://medium.com/@chnasarre/spying-on-net-garbage-collector-with-traceevent-f49dc3117de)
 
+Part 5: [Building your own Java-like GC logs in .NET.](https://medium.com/@chnasarre/c-building-your-own-java-like-gc-logs-in-net-992205fd8d4f)
+
 
 ## Source Code
-The `DebuggingExtensions` Visual Studio 2017 solution contains four projects:
+The `DebuggingExtensions` Visual Studio 2017 solution contains different projects:
 
 1. `ClrCounters`:.NET Standard assembly to easily listen to CLR events with TraceEvent. 
 
@@ -23,6 +25,12 @@ The `DebuggingExtensions` Visual Studio 2017 solution contains four projects:
 3. `NaiveListener`: Demo console application that displays raw CLR events with TraceEvent.
 
 4. `Simulator`: Console application used to simulate interesting behaviours (contention, exceptions, allocations, thread pool usage).
+
+5. `GcLog`: Helper classes to generate a log file containing one line per garbage collection happening in a .NET Application given its process ID.
+                    EtwGcLog is based on TraceEvent and listen to ETW events.
+
+6. `GcLogger`: Console application used to test GcLog.
+
 
 
 
