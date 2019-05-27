@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <Platforms>AnyCPU;x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\GcLog\EventPipeGcLog.cs" Link="EventPipeGcLog.cs" />
+    <Compile Include="..\GcLog\GCDetails.cs" Link="GCDetails.cs" />
+    <Compile Include="..\GcLog\GCEventListener.cs" Link="GCEventListener.cs" />
+    <Compile Include="..\GcLog\GCInfo.cs" Link="GCInfo.cs" />
+    <Compile Include="..\GcLog\GcLogBase.cs" Link="GcLogBase.cs" />
+    <Compile Include="..\GcLog\IGcLog.cs" Link="IGcLog.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClrCounters\ClrCounters.csproj" />
+  </ItemGroup>
+</Project>
