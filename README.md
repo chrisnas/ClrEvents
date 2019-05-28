@@ -14,6 +14,8 @@ Part 4: [Spying on .NET Garbage Collector with TraceEvent.](https://medium.com/
 
 Part 5: [Building your own Java-like GC logs in .NET.](https://medium.com/@chnasarre/c-building-your-own-java-like-gc-logs-in-net-992205fd8d4f)
 
+Part 6: [Spying on .NET Garbage Collector with .NET Core EventPipes](https://medium.com/@chnasarre/spying-on-net-garbage-collector-with-net-core-eventpipes-9f2a986d5705)
+
 
 ## Source Code
 The `DebuggingExtensions` Visual Studio 2017 solution contains different projects:
@@ -31,10 +33,11 @@ The `DebuggingExtensions` Visual Studio 2017 solution contains different project
 
 6. `GcLogger`: Console application used to test GcLog.
 
+7. `EventPipeGcLogger`: Console application used to test EventPipeGcLog (.NET Core Preview 5).
 
 
 
-These projects depends on Nuget package:
+Some projects depends on Nuget package:
 
 - [TraceEvent](https://www.nuget.org/packages/Microsoft.Diagnostics.Tracing.TraceEvent/): C# library to listen to CLR events.
 Source code is available on [Github](https://github.com/Microsoft/perfview/tree/master/src/TraceEvent).
