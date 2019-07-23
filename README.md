@@ -16,11 +16,13 @@ Part 5: [Building your own Java-like GC logs in .NET.](https://medium.com/@chnas
 
 Part 6: [Spying on .NET Garbage Collector with .NET Core EventPipes](https://medium.com/@chnasarre/spying-on-net-garbage-collector-with-net-core-eventpipes-9f2a986d5705)
 
+Part 7: [.NET Core Counters internals: how to integrate counters in your monitoring pipeline](https://medium.com/@chnasarre/net-core-counters-internals-how-to-integrate-counters-in-your-monitoring-pipeline-5354cd61b42e)
+
 
 ## Source Code
-The `DebuggingExtensions` Visual Studio 2017 solution contains different projects:
+The `Events\ClrEtw` Visual Studio solution contains different projects:
 
-1. `ClrCounters`:.NET Standard assembly to easily listen to CLR events with TraceEvent. 
+1. `ClrCounters`: .NET Standard assembly to easily listen to CLR events with TraceEvent. 
 
 2. `ConsoleListener`: Demo console application that uses 'ClrCounters' to display CLR details of a running application.
 
@@ -35,6 +37,11 @@ The `DebuggingExtensions` Visual Studio 2017 solution contains different project
 
 7. `EventPipeGcLogger`: Console application used to test EventPipeGcLog (.NET Core Preview 5).
 
+
+The `Counters\EventPipeCounters` Visual Studio solution contains different projets
+1. `Counters.RuntimeClient`: Helper classes to easily get .NET Core counters; including .csv file automatic creation.
+
+2. `SimpleCounters`: sample application to use CsvCounterListener and CounterMonitor helper classes.
 
 
 Some projects depends on Nuget package:
