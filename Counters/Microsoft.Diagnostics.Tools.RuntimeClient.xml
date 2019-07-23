@@ -1,0 +1,150 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Microsoft.Diagnostics.Tools.RuntimeClient</name>
+    </assembly>
+    <members>
+        <member name="T:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticHelpers.DumpType">
+            <summary>
+            Controls the contents of the dump
+            </summary>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticHelpers.GenerateCoreDump(System.Int32,System.String,Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticHelpers.DumpType,System.Boolean)">
+            <summary>
+            Initiate a core dump in the target process runtime.
+            </summary>
+            <param name="processId">.NET Core process id</param>
+            <param name="dumpName">Path and file name of core dump</param>
+            <param name="dumpType">Type of dump</param>
+            <param name="diagnostics">If true, log to console the dump generation diagnostics</param>
+            <returns>DiagnosticServerErrorCode</returns>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticHelpers.AttachProfiler(System.Int32,System.UInt32,System.Guid,System.String,System.Byte[])">
+            <summary>
+            Attach a profiler to the target process runtime.
+            </summary>
+            <param name="processId">.NET Core process id</param>
+            <param name="attachTimeout">The timeout (in ms) for the runtime to wait while attempting to attach.</param>
+            <param name="profilerGuid">CLSID of the profiler to load</param>
+            <param name="profilerPath">Path to the profiler library on disk</param>
+            <param name="additionalData">additional data to pass to the profiler on attach</param>
+            <returns>HRESULT</returns>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticsIpc.IpcClient.GetTransport(System.Int32)">
+            <summary>
+            Get the OS Transport to be used for communicating with a dotnet process.
+            </summary>
+            <param name="processId">The PID of the dotnet process to get the transport for</param>
+            <returns>A System.IO.Stream wrapper around the transport</returns>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticsIpc.IpcClient.SendMessage(System.Int32,Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticsIpc.IpcMessage)">
+            <summary>
+            Sends a single DiagnosticIpc Message to the dotnet process with PID processId.
+            </summary>
+            <param name="processId">The PID of the dotnet process</param>
+            <param name="message">The DiagnosticsIpc Message to be sent</param>
+            <returns>The response DiagnosticsIpc Message from the dotnet process</returns>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticsIpc.IpcClient.SendMessage(System.Int32,Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticsIpc.IpcMessage,Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticsIpc.IpcMessage@)">
+            <summary>
+            Sends a single DiagnosticIpc Message to the dotnet process with PID processId
+            and returns the Stream for reuse in Optional Continuations.
+            </summary>
+            <param name="processId">The PID of the dotnet process</param>
+            <param name="message">The DiagnosticsIpc Message to be sent</param>
+            <param name="response">out var for response message</param>
+            <returns>The response DiagnosticsIpc Message from the dotnet process</returns>
+        </member>
+        <member name="T:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticMessageType">
+            <summary>
+            Different diagnostic message types that are handled by the runtime.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticMessageType.GenerateCoreDump">
+            <summary>
+            Initiates core dump generation 
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticMessageType.StartEventPipeTracing">
+            <summary>
+            Starts an EventPipe session that writes events to a file when the session is stopped or the application exits.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticMessageType.StopEventPipeTracing">
+            <summary>
+            Stops an EventPipe session.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticMessageType.CollectEventPipeTracing">
+            <summary>
+            Starts an EventPipe session that sends events out-of-proc through IPC.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.DiagnosticMessageType.AttachProfiler">
+            <summary>
+            Attaches a profiler to an existing process
+            </summary>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeClient.ListAvailablePorts">
+            <summary>
+            Get the files associated with the opened IPC Ports for DotNet Core applications.
+            </summary>
+            <returns>
+            A collection of process identifiers associated with the list of opened files (IPC ports).
+            These process Ids might have expired and not properly cleaned up.
+            </returns>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeClient.CollectTracing(System.Int32,Microsoft.Diagnostics.Tools.RuntimeClient.SessionConfiguration,System.UInt64@)">
+            <summary>
+            Start trace collection.
+            </summary>
+            <param name="processId">Runtime process to trace</param>
+            <param name="configuration">buffer size and provider configuration</param>
+            <param name="sessionId">session id</param>
+            <returns>Stream</returns>
+        </member>
+        <member name="M:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeClient.StopTracing(System.Int32,System.UInt64)">
+            <summary>
+            Turn off EventPipe logging session for the specified process Id.
+            </summary>
+            <param name="processId">Process Id to turn off logging session.</param>
+            <param name="sessionId">EventPipe session Id to turn off.</param>
+            <returns>It returns sessionId if success, otherwise 0.</returns>
+        </member>
+        <member name="T:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeSessionType">
+            <summary>
+            Defines constants for EventPipe logging sessions.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeSessionType.TraceToFile">
+            <summary>
+            The events will be written to file at the end of the session.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeSessionType.CallbackListener">
+            <summary>
+            Events will be passed to the EventListener.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.EventPipeSessionType.TraceToStream">
+            <summary>
+            Events will be sent out-of-proc by writing them to the underlying IPC stream implementation.
+            </summary>
+        </member>
+        <member name="T:Microsoft.Diagnostics.Tools.RuntimeClient.MessageHeader">
+            <summary>
+            Message header used to send commands to the .NET Core runtime through IPC.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.MessageHeader.RequestType">
+            <summary>
+            Request type.
+            </summary>
+        </member>
+        <member name="F:Microsoft.Diagnostics.Tools.RuntimeClient.MessageHeader.Pid">
+            <summary>
+            Remote process Id.
+            </summary>
+        </member>
+    </members>
+</doc>
