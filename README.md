@@ -22,7 +22,7 @@ Part 7: [.NET Core Counters internals: how to integrate counters in your monitor
 ## Source Code
 The `Events\ClrEtw` Visual Studio solution contains different projects:
 
-1. `ClrCounters`: .NET Standard assembly to easily listen to CLR events with TraceEvent. 
+1. `ClrCounters`: .NET Standard assembly to easily listen to CLR events with TraceEvent (.NET Core and Framework) or EventPipe (.NET Core only). 
 
 2. `ConsoleListener`: Demo console application that uses 'ClrCounters' to display CLR details of a running application.
 
@@ -35,7 +35,7 @@ The `Events\ClrEtw` Visual Studio solution contains different projects:
 
 6. `GcLogger`: Console application used to test GcLog.
 
-7. `EventPipeGcLogger`: Console application used to test EventPipeGcLog (.NET Core Preview 5).
+7. `EventPipeGcLogger`: Console application used to test EventPipeGcLog (.NET Core 3.0.100).
 
 
 The `Counters\EventPipeCounters` Visual Studio solution contains different projets
@@ -44,7 +44,10 @@ The `Counters\EventPipeCounters` Visual Studio solution contains different proje
 2. `SimpleCounters`: sample application to use CsvCounterListener and CounterMonitor helper classes.
 
 
-Some projects depends on Nuget package:
+Projects dependecies:
 
 - [TraceEvent](https://www.nuget.org/packages/Microsoft.Diagnostics.Tracing.TraceEvent/): C# library to listen to CLR events.
 Source code is available on [Github](https://github.com/Microsoft/perfview/tree/master/src/TraceEvent).
+
+- Microsoft.Diagnostics.Tools.RuntimeClient: unfortunately, no nuget package yet.
+So just recompiled it from [github sources]((https://github.com/dotnet/diagnostics/tree/master/src/Microsoft.Diagnostics.Tools.RuntimeClient)). 
