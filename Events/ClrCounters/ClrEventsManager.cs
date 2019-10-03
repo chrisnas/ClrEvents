@@ -14,10 +14,10 @@ namespace ClrCounters
 {
     public class ClrEventsManager
     {
-        private int _processId;
-        private TypesInfo _types;
-        private ContentionInfoStore _contentionStore;
-        private EventFilter _filter;
+        private readonly int _processId;
+        private readonly TypesInfo _types;
+        private readonly ContentionInfoStore _contentionStore;
+        private readonly EventFilter _filter;
         private readonly TraceEventSession _session;
 
         public event EventHandler<ExceptionArgs> FirstChanceException;
@@ -27,7 +27,9 @@ namespace ClrCounters
         public event EventHandler<GarbageCollectionArgs> GarbageCollection;
         public event EventHandler<AllocationTickArgs> AllocationTick;
 
-        private void Initialize(int processId, EventFilter filter)
+
+        // constructor for EventPipe traces
+        public ClrEventsManager(int processId, EventFilter filter)
         {
             _processId = processId;
             _types = new TypesInfo();
@@ -38,21 +40,16 @@ namespace ClrCounters
 
         // constructor for TraceEvent + ETW traces
         public ClrEventsManager(TraceEventSession session, int processId, EventFilter filter)
+            : this(processId, filter)
         {
             if (session == null)
             {
                 throw new NullReferenceException($"{nameof(session)} must be provided");
             }
-            Initialize(processId, filter);
 
             _session = session;
         }
 
-        // constructor for EventPipe traces
-        public ClrEventsManager(int processId, EventFilter filter)
-        {
-            Initialize(processId, filter);
-        }
 
         private static IReadOnlyCollection<Provider> GetProviders()
         {
