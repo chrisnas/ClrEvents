@@ -25,7 +25,7 @@ namespace Counters.Runtime
         {
             var configuration = new SessionConfiguration(
                 circularBufferSizeMB: 1000,
-                outputPath: "",
+                format: EventPipeSerializationFormat.NetTrace,
                 providers: _providers
                 );
 

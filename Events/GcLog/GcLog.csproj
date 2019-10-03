@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
     <Platforms>AnyCPU;x64</Platforms>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
@@ -17,6 +17,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClrCounters\ClrCounters.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.Diagnostics.Tools.RuntimeClient">
+      <HintPath>..\Microsoft.Diagnostics.Tools.RuntimeClient.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

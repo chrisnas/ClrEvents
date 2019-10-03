@@ -16,4 +16,10 @@
     <ProjectReference Include="..\ClrCounters\ClrCounters.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Microsoft.Diagnostics.Tools.RuntimeClient">
+      <HintPath>..\Microsoft.Diagnostics.Tools.RuntimeClient.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
   </Project>

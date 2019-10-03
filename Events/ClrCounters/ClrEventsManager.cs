@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Tracing;
 using System.Xml;
+using Microsoft.Diagnostics.Tools.RuntimeClient;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Analysis;
 using Microsoft.Diagnostics.Tracing.Analysis.GC;
@@ -12,11 +14,11 @@ namespace ClrCounters
 {
     public class ClrEventsManager
     {
+        private int _processId;
+        private TypesInfo _types;
+        private ContentionInfoStore _contentionStore;
+        private EventFilter _filter;
         private readonly TraceEventSession _session;
-        private readonly int _processId;
-        private readonly TypesInfo _types;
-        private readonly ContentionInfoStore _contentionStore;
-        private readonly EventFilter _filter;
 
         public event EventHandler<ExceptionArgs> FirstChanceException;
         public event EventHandler<FinalizeArgs> Finalize;
@@ -25,9 +27,8 @@ namespace ClrCounters
         public event EventHandler<GarbageCollectionArgs> GarbageCollection;
         public event EventHandler<AllocationTickArgs> AllocationTick;
 
-        public ClrEventsManager(TraceEventSession session, int processId, EventFilter filter)
+        private void Initialize(int processId, EventFilter filter)
         {
-            _session = session;
             _processId = processId;
             _types = new TypesInfo();
             _contentionStore = new ContentionInfoStore();
@@ -35,8 +36,77 @@ namespace ClrCounters
             _filter = filter;
         }
 
+        // constructor for TraceEvent + ETW traces
+        public ClrEventsManager(TraceEventSession session, int processId, EventFilter filter)
+        {
+            if (session == null)
+            {
+                throw new NullReferenceException($"{nameof(session)} must be provided");
+            }
+            Initialize(processId, filter);
+
+            _session = session;
+        }
+
+        // constructor for EventPipe traces
+        public ClrEventsManager(int processId, EventFilter filter)
+        {
+            Initialize(processId, filter);
+        }
+
+        private static IReadOnlyCollection<Provider> GetProviders()
+        {
+            var providers = new Provider[]
+            {
+                new Provider(
+                    name: "Microsoft-Windows-DotNETRuntime",
+                    keywords:   GetKeywords(),
+                    eventLevel: EventLevel.Informational),
+            };
+
+            return providers;
+        }
+
+        private static ulong GetKeywords()
+        {
+            return (ulong)(
+                ClrTraceEventParser.Keywords.Contention |           // thread contention timing
+                ClrTraceEventParser.Keywords.Threading |            // threadpool events
+                ClrTraceEventParser.Keywords.Exception |            // get the first chance exceptions
+                ClrTraceEventParser.Keywords.GCHeapAndTypeNames |   // for finalizer type names
+                ClrTraceEventParser.Keywords.Type |                 // for TypeBulkType definition of types
+                ClrTraceEventParser.Keywords.GC                     // garbage collector details
+                );
+        }
 
         public void ProcessEvents()
+        {
+            if (_session != null)
+            {
+                ProcessEtwEvents();
+                return;
+            }
+
+            ProcessEventPipeEvents();
+        }
+
+        private void ProcessEventPipeEvents()
+        {
+            var configuration = new SessionConfiguration(
+                circularBufferSizeMB: 1000,
+                format: EventPipeSerializationFormat.NetTrace,
+                providers: GetProviders()
+            );
+
+            var binaryReader = EventPipeClient.CollectTracing(_processId, configuration, out var sessionId);
+            EventPipeEventSource source = new EventPipeEventSource(binaryReader);
+            RegisterListeners(source);
+
+            // this is a blocking call
+            source.Process();
+        }
+
+        private void ProcessEtwEvents()
         {
             // setup process filter if any
             TraceEventProviderOptions options = null;
@@ -50,36 +120,52 @@ namespace ClrCounters
 
             // register handlers for events on the session source
             // --------------------------------------------------
+            RegisterListeners(_session.Source);
 
+            // decide which provider to listen to with filters if needed
+            _session.EnableProvider(
+                ClrTraceEventParser.ProviderGuid,  // CLR provider
+                ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ? 
+                    TraceEventLevel.Verbose : TraceEventLevel.Informational,
+                GetKeywords(),
+                options
+            );
+
+
+            // this is a blocking call until the session is disposed
+            _session.Source.Process();
+        }
+
+        private void RegisterListeners(TraceEventDispatcher source)
+        {
             if ((_filter & EventFilter.Exception) == EventFilter.Exception)
             {
                 // get exceptions
-                _session.Source.Clr.ExceptionStart += OnExceptionStart;
+                source.Clr.ExceptionStart += OnExceptionStart;
             }
 
             if ((_filter & EventFilter.Finalizer) == EventFilter.Finalizer)
             {
                 // get finalizers
-                _session.Source.Clr.TypeBulkType += OnTypeBulkType;
-                _session.Source.Clr.GCFinalizeObject += OnGCFinalizeObject;
+                source.Clr.TypeBulkType += OnTypeBulkType;
+                source.Clr.GCFinalizeObject += OnGCFinalizeObject;
             }
 
             if ((_filter & EventFilter.Contention) == EventFilter.Contention)
             {
                 // get thread contention time
-                _session.Source.Clr.ContentionStart += OnContentionStart;
-                _session.Source.Clr.ContentionStop += OnContentionStop;
+                source.Clr.ContentionStart += OnContentionStart;
+                source.Clr.ContentionStop += OnContentionStop;
             }
 
             if ((_filter & EventFilter.ThreadStarvation) == EventFilter.ThreadStarvation)
             {
                 // detect ThreadPool starvation
-                _session.Source.Clr.ThreadPoolWorkerThreadAdjustmentAdjustment += OnThreadPoolWorkerAdjustment;
+                source.Clr.ThreadPoolWorkerThreadAdjustmentAdjustment += OnThreadPoolWorkerAdjustment;
             }
 
             if ((_filter & EventFilter.GC) == EventFilter.GC)
             {
-                var source = _session.Source;
                 source.NeedLoadedDotNetRuntimes();
                 source.AddCallbackOnProcessStart((TraceProcess proc) =>
                 {
@@ -100,28 +186,8 @@ namespace ClrCounters
             if ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick)
             {
                 // sample every ~100 KB of allocations
-                _session.Source.Clr.GCAllocationTick += OnGCAllocationTick;
+                source.Clr.GCAllocationTick += OnGCAllocationTick;
             }
-
-            // decide which provider to listen to with filters if needed
-            _session.EnableProvider(
-                ClrTraceEventParser.ProviderGuid,  // CLR provider
-                ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ? 
-                    TraceEventLevel.Verbose : TraceEventLevel.Informational,
-                (ulong)(
-                ClrTraceEventParser.Keywords.Contention |           // thread contention timing
-                ClrTraceEventParser.Keywords.Threading |            // threadpool events
-                ClrTraceEventParser.Keywords.Exception |            // get the first chance exceptions
-                ClrTraceEventParser.Keywords.GCHeapAndTypeNames |   // for finalizer type names
-                ClrTraceEventParser.Keywords.Type |                 // for TypeBulkType definition of types
-                ClrTraceEventParser.Keywords.GC                     // garbage collector details
-                ),
-                options
-            );
-
-
-            // this is a blocking call until the session is disposed
-            _session.Source.Process();
         }
 
         private void OnGCAllocationTick(GCAllocationTickTraceData data)

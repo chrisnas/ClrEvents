@@ -1,7 +1,13 @@
-﻿using Microsoft.Diagnostics.Tracing.Session;
+﻿// EventPipe are used if ETW is not defined
+//#define ETW
+
+#if ETW
+using Microsoft.Diagnostics.Tracing.Session;
+#endif
 using System;
 using System.Threading.Tasks;
 using ClrCounters;
+
 
 namespace ConsoleListener
 {
@@ -22,6 +28,8 @@ namespace ConsoleListener
                 int.TryParse(args[0], out pid);
             }
 
+#if ETW
+            // ETW implementation
             string sessionName = "EtwSessionForCLR_" + Guid.NewGuid().ToString();
             Console.WriteLine($"Starting {sessionName}...\r\n");
             using (TraceEventSession userSession = new TraceEventSession(sessionName, TraceEventSessionOptions.Create))
@@ -30,12 +38,7 @@ namespace ConsoleListener
                 {
                     // don't want allocation ticks by default because it might have a noticeable impact
                     ClrEventsManager manager = new ClrEventsManager(userSession, pid, EventFilter.All & ~EventFilter.AllocationTick);
-                    manager.FirstChanceException += OnFirstChanceException;
-                    manager.Finalize += OnFinalize;
-                    manager.Contention += OnContention;
-                    manager.ThreadPoolStarvation += OnThreadPoolStarvation;
-                    manager.GarbageCollection += OnGarbageCollection;
-                    //manager.AllocationTick += OnAllocationTick;
+                    RegisterEventHandlers(manager);
 
                     // this is a blocking call until the session is disposed
                     manager.ProcessEvents();
@@ -46,8 +49,36 @@ namespace ConsoleListener
                 Console.WriteLine("Press ENTER to exit...");
                 Console.ReadLine();
             }
+#else
+
+            // EventPipe implementation
+            Console.WriteLine($"Starting event pipe session...");
+            Task.Run(() =>
+            {
+                // don't want allocation ticks by default because it might have a noticeable impact
+                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
+                RegisterEventHandlers(manager);
+
+                // this is a blocking call until the session is disposed
+                manager.ProcessEvents();
+                Console.WriteLine("End of CLR event processing");
+            });
+
+            // wait for the user to dismiss the session
+            Console.WriteLine("Press ENTER to exit...");
+            Console.ReadLine();
+#endif
         }
 
+        private static void RegisterEventHandlers(ClrEventsManager manager)
+        {
+            manager.FirstChanceException += OnFirstChanceException;
+            manager.Finalize += OnFinalize;
+            manager.Contention += OnContention;
+            //manager.ThreadPoolStarvation += OnThreadPoolStarvation;
+            manager.GarbageCollection += OnGarbageCollection;
+            //manager.AllocationTick += OnAllocationTick;
+        }
 
         private static void OnThreadPoolStarvation(object sender, ThreadPoolStarvationArgs e)
         {
@@ -57,7 +88,10 @@ namespace ConsoleListener
         private static void OnContention(object sender, ContentionArgs e)
         {
             if (e.IsManaged)
-                Console.WriteLine($"[{e.ProcessId,7}.{e.ThreadId,7}] | {e.Duration.Milliseconds} ms");
+            {
+                if (e.Duration.Milliseconds > 0)
+                    Console.WriteLine($"[{e.ProcessId,7}.{e.ThreadId,7}] | {e.Duration.Milliseconds} ms");
+            }
         }
 
         private static void OnFirstChanceException(object sender, ExceptionArgs e)
