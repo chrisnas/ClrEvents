@@ -50,4 +50,4 @@ Projects dependecies:
 Source code is available on [Github](https://github.com/Microsoft/perfview/tree/master/src/TraceEvent).
 
 - Microsoft.Diagnostics.Tools.RuntimeClient: unfortunately, no nuget package yet.
-So just recompiled it from [github sources]((https://github.com/dotnet/diagnostics/tree/master/src/Microsoft.Diagnostics.Tools.RuntimeClient)). 
+So just recompiled it from [github sources](https://github.com/dotnet/diagnostics/tree/master/src/Microsoft.Diagnostics.Tools.RuntimeClient). 
