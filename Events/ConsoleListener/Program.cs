@@ -1,5 +1,5 @@
 ﻿// EventPipe are used if ETW is not defined
-//#define ETW
+#define ETW
 
 #if ETW
 using Microsoft.Diagnostics.Tracing.Session;
