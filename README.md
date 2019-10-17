@@ -18,6 +18,8 @@ Part 6: [Spying on .NET Garbage Collector with .NET Core EventPipes](https://m
 
 Part 7: [.NET Core Counters internals: how to integrate counters in your monitoring pipeline](https://medium.com/@chnasarre/net-core-counters-internals-how-to-integrate-counters-in-your-monitoring-pipeline-5354cd61b42e)
 
+Part 8: [How to expose your custom counters in .NET Core](https://medium.com/@chnasarre/how-to-expose-your-custom-counters-in-net-core-5dcedcc2ccb6)
+
 
 ## Source Code
 The `Events\ClrEtw` Visual Studio solution contains different projects:
@@ -42,6 +44,8 @@ The `Counters\EventPipeCounters` Visual Studio solution contains different proje
 1. `Counters.RuntimeClient`: Helper classes to easily get .NET Core counters; including .csv file automatic creation.
 
 2. `SimpleCounters`: sample application to use CsvCounterListener and CounterMonitor helper classes.
+
+3. `CountersWebApp`: sample ASP.NET Core application to demonstrate custom counters about count/duration of requests processed with(out) GC.
 
 
 Projects dependecies:
