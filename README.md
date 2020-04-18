@@ -20,6 +20,8 @@ Part 7: [.NET Core Counters internals: how to integrate counters in your monitor
 
 Part 8: [How to expose your custom counters in .NET Core](https://medium.com/@chnasarre/how-to-expose-your-custom-counters-in-net-core-5dcedcc2ccb6)
 
+Part 9: [Build your own .NET memory profiler in C# - allocations(1/2)](https://medium.com/@chnasarre/build-your-own-net-memory-profiler-in-c-allocations-1-2-9c9f0c86cefd)
+
 
 ## Source Code
 The `Events\ClrEtw` Visual Studio solution contains different projects:
@@ -38,6 +40,10 @@ The `Events\ClrEtw` Visual Studio solution contains different projects:
 6. `GcLogger`: Console application used to test GcLog.
 
 7. `EventPipeGcLogger`: Console application used to test EventPipeGcLog (.NET Core 3.0.100).
+
+8. `AllocationTickProfiler`: simple memory profiler using AllocationTick event.
+
+9. `SampledObjectAllocationProfiler`: simple memory profiler using SampledObjectAllocation(High/Low) events.
 
 
 The `Counters\EventPipeCounters` Visual Studio solution contains different projets
