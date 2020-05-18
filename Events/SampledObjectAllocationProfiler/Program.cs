@@ -20,30 +20,33 @@ namespace SampledObjectAllocationProfiler
                     "SampledObjectAllocationMemoryProfilingSession",
                     TraceEventSessionOptions.Create
                     );
-                var processes = new PerProcessProfilingState();
-                var profiler = new SampledObjectAllocationMemoryProfiler(session, processes);
-                var task = profiler.StartAsync(parameters.noSampling);
 
-                Console.WriteLine("Press ENTER to stop memory profiling");
-                Console.ReadLine();
+                using (var processes = new PerProcessProfilingState())
+                { 
+                    var profiler = new SampledObjectAllocationMemoryProfiler(session, processes);
+                    var task = profiler.StartAsync(parameters.noSampling);
 
-                // this will exit the session.Process() call
-                session.Dispose();
+                    Console.WriteLine("Press ENTER to stop memory profiling");
+                    Console.ReadLine();
 
-                try
-                {
-                    await task;
-                    ShowResults(processes, parameters.sortBySize, parameters.topTypesLimit);
+                    // this will exit the session.Process() call
+                    session.Dispose();
 
-                    return 0;
+                    try
+                    {
+                        await task;
+                        ShowResults(processes, parameters.sortBySize, parameters.topTypesLimit);
+
+                        return 0;
+                    }
+                    catch (Exception x)
+                    {
+                        Console.WriteLine(x.Message);
+                        ShowHelp();
+                    }
                 }
-                catch (Exception x)
-                {
-                    Console.WriteLine(x.Message);
-                    ShowHelp();
-                }
 
-                return 0;
+                return -1;
             }
             catch (Exception x)
             {
@@ -51,12 +54,12 @@ namespace SampledObjectAllocationProfiler
                 ShowHelp();
             }
 
-            return -1;
+            return -2;
         }
 
         private static (bool noSampling, bool sortBySize, int topTypesLimit) GetParameters(string[] args)
         {
-            (bool noSampling, bool sortBySize, int topTypesLimit) parameters = (noSampling: false, sortBySize: true, topTypesLimit: -1);
+            (bool noSampling, bool sortBySize, int topTypesLimit) parameters = (noSampling: false, sortBySize: true, topTypesLimit: 3);
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -98,7 +101,10 @@ namespace SampledObjectAllocationProfiler
         {
             foreach (var pid in processes.Allocations.Keys)
             {
-                ShowResults(GetProcessName(pid, processes.Names), processes.Allocations[pid], sortBySize, topTypesLimit);
+                // skip processes without symbol resolution
+                if (!processes.Methods.ContainsKey(pid)) continue;
+
+                ShowResults(GetProcessName(pid, processes.Names), processes.Methods[pid], processes.Allocations[pid], sortBySize, topTypesLimit);
             }
         }
 
@@ -110,7 +116,7 @@ namespace SampledObjectAllocationProfiler
             return pid.ToString();
         }
 
-        private static void ShowResults(string name, ProcessAllocationInfo allocations, bool sortBySize, int topTypesLimit)
+        private static void ShowResults(string name, MethodStore methods, ProcessAllocations allocations, bool sortBySize, int topTypesLimit)
         {
             Console.WriteLine($"Memory allocations for {name}");
             Console.WriteLine();
@@ -118,8 +124,8 @@ namespace SampledObjectAllocationProfiler
             Console.WriteLine("    Count        Size   Type");
             Console.WriteLine("---------------------------------------------------------");
             IEnumerable<AllocationInfo> types = (sortBySize)
-                ? allocations.GetAllocations().OrderByDescending(a => a.Size)
-                : allocations.GetAllocations().OrderByDescending(a => a.Count)
+                ? allocations.GetAllAllocations().OrderByDescending(a => a.Size)
+                : allocations.GetAllAllocations().OrderByDescending(a => a.Count)
                 ;
             if (topTypesLimit != -1)
                 types = types.Take(topTypesLimit);
@@ -127,9 +133,33 @@ namespace SampledObjectAllocationProfiler
             foreach (var allocation in types)
             {
                 Console.WriteLine($"{allocation.Count,9} {allocation.Size,11}   {allocation.TypeName}");
+                Console.WriteLine();
+                DumpStacks(allocation, methods);
+                Console.WriteLine();
             }
             Console.WriteLine();
             Console.WriteLine();
+        }
+
+        private static void DumpStacks(AllocationInfo allocation, MethodStore methods)
+        {
+            var stacks = allocation.Stacks.OrderByDescending(s => s.Count).Take(10);
+            foreach (var stack in stacks)
+            {
+                Console.WriteLine($"{stack.Count,6} allocations");
+                Console.WriteLine("----------------------------------");
+                DumpStack(stack.Stack, methods);
+                Console.WriteLine();
+            }
+        }
+
+        private static void DumpStack(AddressStack stack, MethodStore methods)
+        {
+            var callstack = stack.Stack;
+            for (int i = 0; i < Math.Min(10, callstack.Count); i++)
+            {
+                Console.WriteLine($"       {methods.GetFullName(callstack[i])}");
+            }
         }
 
         private static void ShowHeader()
@@ -142,9 +172,9 @@ namespace SampledObjectAllocationProfiler
         {
             Console.WriteLine();
             Console.WriteLine("SampledObjectAllocationProfiler shows sampled allocations of a given .NET application.");
-            Console.WriteLine("Usage: SampledObjectAllocationProfiler  [-a (all allocations)] [-c (sort by count instead of default by size)] [-t <type count (instead of all types by default)>]");
-            Console.WriteLine("   Ex: SampledObjectAllocationProfiler -t 10     (top 50 sampled allocations sorted by size)");
-            Console.WriteLine("   Ex: SampledObjectAllocationProfiler -a -t 10  (top 10 allocations sorted by count)");
+            Console.WriteLine("Usage: SampledObjectAllocationProfiler  [-a (all allocations)] [-c (sort by count instead of default by size)] [-t <type count (instead of 3 types by default)>]");
+            Console.WriteLine("   Ex: SampledObjectAllocationProfiler -t -1     (all types sampled allocations sorted by size)");
+            Console.WriteLine("   Ex: SampledObjectAllocationProfiler -c -t 10  (allocations for top 10 types sorted by count)");
             Console.WriteLine();
         }
     }

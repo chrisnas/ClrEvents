@@ -10,4 +10,8 @@
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="2.0.54" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;NativeReferences\dbghelp.dll&quot; $(TargetDir)&#xD;&#xA;copy &quot;NativeReferences\symsrv.dll&quot; $(TargetDir)" />
+  </Target>
+
 </Project>

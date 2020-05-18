@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Diagnostics.Symbols;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Etlx;
 using Microsoft.Diagnostics.Tracing.Parsers;
@@ -17,6 +20,8 @@ namespace AllocationTickProfiler
     {
         private readonly TraceEventSession _session;
         private readonly ProcessAllocationInfo _allocations;
+        private readonly SymbolReader _symbolReader;
+        private readonly TextWriter _symbolLookupMessages;
         private readonly int _pid;
         private readonly bool _verbose;
         private int _started = 0;
@@ -33,6 +38,19 @@ namespace AllocationTickProfiler
 
             _pid = pid;
             _verbose = verbose;
+
+            _symbolLookupMessages = new StringWriter();
+
+            // By default a symbol Reader uses whatever is in the _NT_SYMBOL_PATH variable.  However you can override
+            // if you wish by passing it to the SymbolReader constructor.  Since we want this to work even if you 
+            // have not set an _NT_SYMBOL_PATH, so we add the Microsoft default symbol server path to be sure/
+            var symbolPath = new SymbolPath(SymbolPath.SymbolPathFromEnvironment).Add(SymbolPath.MicrosoftSymbolServerPath);
+            _symbolReader = new SymbolReader(_symbolLookupMessages, symbolPath.ToString());
+
+            // By default the symbol reader will NOT read PDBs from 'unsafe' locations (like next to the EXE)  
+            // because hackers might make malicious PDBs. If you wish ignore this threat, you can override this
+            // check to always return 'true' for checking that a PDB is 'safe'.  
+            _symbolReader.SecurityCheck = (path => true);
         }
 
         public async Task StartAsync()
@@ -55,6 +73,10 @@ namespace AllocationTickProfiler
                         source.Process();
                     }
                 }
+
+                // dump the symbol related error messages if required
+                if (_verbose)
+                    Console.WriteLine(_symbolLookupMessages.ToString());
             });
         }
 
@@ -63,7 +85,7 @@ namespace AllocationTickProfiler
             // Note: the kernel provider MUST be the first provider to be enabled
             // If the kernel provider is not enabled, the callstacks for CLR events are still received 
             // but the symbols are not found (except for the application itself)
-            // Maybe a TraceEvent implementation details triggered when a module (image) is loaded
+            // TraceEvent implementation details triggered when a module (image) is loaded
             session.EnableKernelProvider(
                 KernelTraceEventParser.Keywords.ImageLoad |
                 KernelTraceEventParser.Keywords.Process,
@@ -75,9 +97,23 @@ namespace AllocationTickProfiler
                 TraceEventLevel.Verbose,    // this is needed in order to receive AllocationTick_V2 event
                 (ulong)(
                 // required to receive AllocationTick events
-                ClrTraceEventParser.Keywords.GC
+                ClrTraceEventParser.Keywords.GC |
+                ClrTraceEventParser.Keywords.Jit |                      // Turning on JIT events is necessary to resolve JIT compiled code 
+                ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |// This is needed if you want line number information in the stacks
+                ClrTraceEventParser.Keywords.Loader |                   // You must include loader events as well to resolve JIT compiled code. 
+                ClrTraceEventParser.Keywords.Stack
                 )
             );
+
+            // this provider will send events of already JITed methods
+            session.EnableProvider(ClrRundownTraceEventParser.ProviderGuid, TraceEventLevel.Informational,
+            (ulong)(
+                ClrTraceEventParser.Keywords.Jit |              // We need JIT events to be rundown to resolve method names
+                ClrTraceEventParser.Keywords.JittedMethodILToNativeMap | // This is needed if you want line number information in the stacks
+                ClrTraceEventParser.Keywords.Loader |           // As well as the module load events.  
+                ClrTraceEventParser.Keywords.StartEnumeration   // This indicates to do the rundown now (at enable time)
+                ));
+
         }
 
         private void SetupListeners(TraceLogEventSource source)
@@ -90,9 +126,42 @@ namespace AllocationTickProfiler
             if (FilterOutEvent(data)) return;
 
             if (_verbose)
+            {
                 Console.WriteLine($"{data.AllocationKind,7} | {data.AllocationAmount64,10} : {data.TypeName}");
 
+                var callstack = data.CallStack();
+                if (callstack != null)
+                {
+                    DumpStack(callstack);
+                }
+            }
+
             _allocations.AddAllocation(data.AllocationKind, (ulong)data.AllocationAmount64, data.TypeName);
+        }
+
+        private void DumpStack(TraceCallStack callStack)
+        {
+            while (callStack != null)
+            {
+                var codeAddress = callStack.CodeAddress;
+                if (codeAddress.Method == null)
+                {
+                    var moduleFile = codeAddress.ModuleFile;
+                    if (moduleFile == null)
+                    {
+                        Debug.WriteLine($"Could not find module for Address 0x{codeAddress.Address:x}");
+                    }
+                    else
+                    {
+                        codeAddress.CodeAddresses.LookupSymbolsForModule(_symbolReader, moduleFile);
+                    }
+                }
+                if (!string.IsNullOrEmpty(codeAddress.FullMethodName))
+                    Console.WriteLine($"     {codeAddress.FullMethodName}");
+                else
+                    Console.WriteLine($"     0x{codeAddress.Address:x}");
+                callStack = callStack.Caller;
+            }
         }
 
         private bool FilterOutEvent(TraceEvent data)
