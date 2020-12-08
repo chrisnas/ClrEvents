@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace SampledObjectAllocationProfiler
+namespace ProfilerHelpers
 {
     public class MethodInfo
     {

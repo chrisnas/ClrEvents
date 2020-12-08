@@ -29,7 +29,7 @@ namespace SampledObjectAllocationProfiler
             return _allocations.Values;
         }
 
-        public AllocationInfo AddAllocation(int pid, ulong size, ulong count, string typeName)
+        public AllocationInfo AddAllocation(int threadID, ulong size, ulong count, string typeName)
         {
             if (!_allocations.TryGetValue(typeName, out var info))
             {
@@ -40,24 +40,24 @@ namespace SampledObjectAllocationProfiler
             info.AddAllocation(size, count);
 
             // the last allocation is still here without the corresponding stack
-            if (_perThreadLastAllocation.TryGetValue(pid, out var lastAlloc))
+            if (_perThreadLastAllocation.TryGetValue(threadID, out var lastAlloc))
             {
                 Console.WriteLine("no stack for the last allocation");
             }
 
             // keep track of the allocation for the given thread
             // --> will be used when the corresponding call stack event will be received
-            _perThreadLastAllocation[pid] = info;
+            _perThreadLastAllocation[threadID] = info;
 
             return info;
         }
 
-        public void AddStack(int tid, AddressStack stack)
+        public void AddStack(int threadID, AddressStack stack)
         {
-            if (_perThreadLastAllocation.TryGetValue(tid, out var lastAlloc))
+            if (_perThreadLastAllocation.TryGetValue(threadID, out var lastAlloc))
             {
                 lastAlloc.AddStack(stack);
-                _perThreadLastAllocation.Remove(tid);
+                _perThreadLastAllocation.Remove(threadID);
                 return;
             }
 

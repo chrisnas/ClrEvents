@@ -3,6 +3,7 @@ using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Parsers.Clr;
 using Microsoft.Diagnostics.Tracing.Parsers.Kernel;
 using Microsoft.Diagnostics.Tracing.Session;
+using ProfilerHelpers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -53,7 +54,7 @@ namespace SampledObjectAllocationProfiler
             // If the kernel provider is not enabled, the callstacks for CLR events are still received 
             // but the symbols are not found (except for the application itself)
             // Maybe a TraceEvent implementation details triggered when a module (image) is loaded
-            session.EnableKernelProvider(
+            var success = session.EnableKernelProvider(
                 KernelTraceEventParser.Keywords.ImageLoad |
                 KernelTraceEventParser.Keywords.Process,
                 KernelTraceEventParser.Keywords.None
@@ -66,7 +67,7 @@ namespace SampledObjectAllocationProfiler
                 : ClrTraceEventParser.Keywords.GCSampledObjectAllocationLow
                 ;
 
-            session.EnableProvider(
+            success = session.EnableProvider(
                 ClrTraceEventParser.ProviderGuid,
                 TraceEventLevel.Verbose,    // this is needed in order to receive GCSampledObjectAllocation event
                 (ulong)(
@@ -100,9 +101,6 @@ namespace SampledObjectAllocationProfiler
             // required to receive the mapping between type ID (received in GCSampledObjectAllocation)
             // and their name (received in TypeBulkType)
             source.Clr.TypeBulkType += OnTypeBulkType;
-
-            // not supported for Linux
-            //source.Kernel.ProcessStart += OnProcessStart;
 
             // messages to get callstacks
             // the correlation seems to be as "simple" as taking the last event on the same thread
@@ -148,13 +146,6 @@ namespace SampledObjectAllocationProfiler
             return methods;
         }
 
-
-        private void OnProcessStart(ProcessTraceData data)
-        {
-            // not supported for Linux
-            //Console.WriteLine($"+ {data.ImageFileName}");
-            //_processes.Names[data.ProcessID] = data.ImageFileName;
-        }
 
         private void OnSampleObjectAllocation(GCSampledObjectAllocationTraceData data)
         {
@@ -273,7 +264,6 @@ namespace SampledObjectAllocationProfiler
 
         private bool FilterOutEvent(TraceEvent data)
         {
-            //return (data.ProcessID == _currentPid) || (!data.ProcessName.StartsWith("WPFTest"));
             return (data.ProcessID == _currentPid);
         }
     }

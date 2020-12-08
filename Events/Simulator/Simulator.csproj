@@ -6,8 +6,8 @@
     <OutputType>Exe</OutputType>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!--<TargetFramework>netcoreapp2.0</TargetFramework>-->
-    <!--<TargetFramework>net472</TargetFramework>-->
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net472</TargetFramework>
+    <!--<TargetFramework>netcoreapp3.1</TargetFramework>-->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>

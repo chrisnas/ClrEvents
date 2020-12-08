@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace SampledObjectAllocationProfiler
+namespace ProfilerHelpers
 {
     public class MethodStore : IDisposable
     {
@@ -20,24 +20,25 @@ namespace SampledObjectAllocationProfiler
         private Process _process;
         private readonly int _pid;
 
-        public MethodStore(int pid)
+        public MethodStore(int pid, bool loadModules = false)
         {
             // it may be possible to open the process
             // in that case, _hProcess = IntPtr.Zero
             _pid = pid;
-            _hProcess = BindToProcess(pid);
 
             _methods = new List<MethodInfo>(1024);
             _cache = new Dictionary<ulong, string>();
+
+            _hProcess = BindToProcess(pid, loadModules);
         }
 
-        private IntPtr BindToProcess(int pid)
+        private IntPtr BindToProcess(int pid, bool loadModules)
         {
             try
             {
                 _process = Process.GetProcessById(pid);
 
-                if (!SymInitialize(_process.Handle))
+                if (!SymInitialize(_process.Handle, loadModules))
                     return IntPtr.Zero;
 
                 return _process.Handle;
@@ -50,7 +51,7 @@ namespace SampledObjectAllocationProfiler
             }
         }
 
-        private bool SymInitialize(IntPtr hProcess)
+        private bool SymInitialize(IntPtr hProcess, bool loadModules = false)
         {
             // read https://docs.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symsetoptions for more details
             // maybe SYMOPT_NO_PROMPTS and SYMOPT_FAIL_CRITICAL_ERRORS could be used
@@ -67,7 +68,7 @@ namespace SampledObjectAllocationProfiler
             //
             // passing false as last parameter means that we will need to call SymLoadModule64 
             // each time a module is loaded in the process
-            return NativeDbgHelp.SymInitialize(hProcess, null, false);
+            return NativeDbgHelp.SymInitialize(hProcess, null, loadModules);
         }
 
         public MethodInfo Add(ulong address, int size, string namespaceAndTypeName, string name, string signature)
@@ -127,7 +128,7 @@ namespace SampledObjectAllocationProfiler
                 return buffer.ToString();
             }
 
-            // default value is the just the address in HEX
+            // default value is just the address in HEX
 #if DEBUG
             return ($"0x{address:x}  (SymFromAddr failed with 0x{Marshal.GetLastWin32Error():x})");
 #else

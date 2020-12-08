@@ -15,7 +15,7 @@ namespace AllocationTickProfiler
     //
     // From https://github.com/microsoft/perfview/blob/master/src/TraceEvent/Samples/41_TraceLogMonitor.cs
     // Shows how to get callstacks for ETW events and how to map address on the stack to string symbols 
-    // WARNING: large memory consumption to map JITed methods names
+    // WARNING: large memory consumption to map JITed methods names in case of several .NET apps running at the same time
     public class AllocationTickMemoryProfiler
     {
         private readonly TraceEventSession _session;
@@ -101,12 +101,12 @@ namespace AllocationTickProfiler
                 ClrTraceEventParser.Keywords.Jit |                      // Turning on JIT events is necessary to resolve JIT compiled code 
                 ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |// This is needed if you want line number information in the stacks
                 ClrTraceEventParser.Keywords.Loader |                   // You must include loader events as well to resolve JIT compiled code. 
-                ClrTraceEventParser.Keywords.Stack
+                ClrTraceEventParser.Keywords.Stack  // Get the callstack for each event
                 )
             );
 
             // this provider will send events of already JITed methods
-            session.EnableProvider(ClrRundownTraceEventParser.ProviderGuid, TraceEventLevel.Informational,
+            session.EnableProvider(ClrRundownTraceEventParser.ProviderGuid, TraceEventLevel.Verbose,
             (ulong)(
                 ClrTraceEventParser.Keywords.Jit |              // We need JIT events to be rundown to resolve method names
                 ClrTraceEventParser.Keywords.JittedMethodILToNativeMap | // This is needed if you want line number information in the stacks
@@ -139,19 +139,15 @@ namespace AllocationTickProfiler
             _allocations.AddAllocation(data.AllocationKind, (ulong)data.AllocationAmount64, data.TypeName);
         }
 
-        private void DumpStack(TraceCallStack callStack)
+        private void DumpStack(TraceCallStack frame)
         {
-            while (callStack != null)
+            while (frame != null)
             {
-                var codeAddress = callStack.CodeAddress;
+                var codeAddress = frame.CodeAddress;
                 if (codeAddress.Method == null)
                 {
                     var moduleFile = codeAddress.ModuleFile;
-                    if (moduleFile == null)
-                    {
-                        Debug.WriteLine($"Could not find module for Address 0x{codeAddress.Address:x}");
-                    }
-                    else
+                    if (moduleFile != null)
                     {
                         codeAddress.CodeAddresses.LookupSymbolsForModule(_symbolReader, moduleFile);
                     }
@@ -160,7 +156,7 @@ namespace AllocationTickProfiler
                     Console.WriteLine($"     {codeAddress.FullMethodName}");
                 else
                     Console.WriteLine($"     0x{codeAddress.Address:x}");
-                callStack = callStack.Caller;
+                frame = frame.Caller;
             }
         }
 

@@ -19,7 +19,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EventPipeGcLogger", "EventP
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AllocationTickProfiler", "AllocationTickProfiler\AllocationTickProfiler.csproj", "{7D6D735C-E86A-4641-9167-B697E5F51E0C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampledObjectAllocationProfiler", "SampledObjectAllocationProfiler\SampledObjectAllocationProfiler.csproj", "{245ECE3F-8FB6-45CC-A2A0-81B8BF4EEA4D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampledObjectAllocationProfiler", "SampledObjectAllocationProfiler\SampledObjectAllocationProfiler.csproj", "{245ECE3F-8FB6-45CC-A2A0-81B8BF4EEA4D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CpuSamplingProfiler", "CpuSamplingProfiler\CpuSamplingProfiler.csproj", "{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -101,6 +103,14 @@ Global
 		{245ECE3F-8FB6-45CC-A2A0-81B8BF4EEA4D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{245ECE3F-8FB6-45CC-A2A0-81B8BF4EEA4D}.Release|x64.ActiveCfg = Release|Any CPU
 		{245ECE3F-8FB6-45CC-A2A0-81B8BF4EEA4D}.Release|x64.Build.0 = Release|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Debug|x64.Build.0 = Debug|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Release|x64.ActiveCfg = Release|Any CPU
+		{53BE7829-F2CF-4FED-9480-1CA1165CB9DA}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

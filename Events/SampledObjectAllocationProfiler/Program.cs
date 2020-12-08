@@ -1,4 +1,5 @@
 ﻿using Microsoft.Diagnostics.Tracing.Session;
+using ProfilerHelpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -104,6 +105,9 @@ namespace SampledObjectAllocationProfiler
                 // skip processes without symbol resolution
                 if (!processes.Methods.ContainsKey(pid)) continue;
 
+                // skip processes without allocations
+                if (!processes.Allocations[pid].GetAllAllocations().Any()) continue;
+
                 ShowResults(GetProcessName(pid, processes.Names), processes.Methods[pid], processes.Allocations[pid], sortBySize, topTypesLimit);
             }
         }
@@ -133,6 +137,7 @@ namespace SampledObjectAllocationProfiler
             foreach (var allocation in types)
             {
                 Console.WriteLine($"{allocation.Count,9} {allocation.Size,11}   {allocation.TypeName}");
+
                 Console.WriteLine();
                 DumpStacks(allocation, methods);
                 Console.WriteLine();
