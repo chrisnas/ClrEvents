@@ -143,21 +143,31 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BlockParser.cpp" />
     <ClCompile Include="DiagnosticsClient.cpp" />
     <ClCompile Include="DiagnosticsProtocol.cpp" />
+    <ClCompile Include="EventParser.cpp" />
     <ClCompile Include="EventPipeSession.cpp" />
-    <ClCompile Include="IIpcEndpoint.cpp" />
+    <ClCompile Include="FileRecorder.cpp" />
     <ClCompile Include="IpcEndpoint.cpp" />
+    <ClCompile Include="MetadataParser.cpp" />
     <ClCompile Include="NativeEventListener.cpp" />
     <ClCompile Include="PidEndpoint.cpp" />
+    <ClCompile Include="RecordedEndpoint.cpp" />
+    <ClCompile Include="StackParser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BlockParser.h" />
     <ClInclude Include="DiagnosticsClient.h" />
     <ClInclude Include="DiagnosticsProtocol.h" />
     <ClInclude Include="EventPipeSession.h" />
+    <ClInclude Include="FileRecorder.h" />
     <ClInclude Include="IIpcEndpoint.h" />
     <ClInclude Include="IpcEndpoint.h" />
+    <ClInclude Include="IIpcRecorder.h" />
+    <ClInclude Include="NettraceFormat.h" />
     <ClInclude Include="PidEndpoint.h" />
+    <ClInclude Include="RecordedEndpoint.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

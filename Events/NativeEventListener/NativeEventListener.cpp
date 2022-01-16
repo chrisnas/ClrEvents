@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <windows.h>
 
@@ -172,14 +173,72 @@ DWORD WINAPI ListenToEvents(void* pParam)
     return 0;
 }
 
-int main()
+// -p : pid
+// -i : input filename
+// -o : output filename
+void ParseCommandLine(int argc, wchar_t* argv[], DWORD& pid, const wchar_t*& inputFilename, const wchar_t*& outputFilename)
+{
+    pid = -1;
+    inputFilename = nullptr;
+    outputFilename = nullptr;
+
+    for (int i = 0; i < argc; i++)
+    {
+        if (lstrcmp(argv[i], L"-pid") == 0)
+        {
+            if (i + 1 == argc)
+                return;
+            i++;
+
+            pid = wcstol(argv[i], nullptr, 10);
+        }
+        else
+        if (lstrcmp(argv[i], L"-in") == 0)
+        {
+            if (i + 1 == argc)
+                return;
+            i++;
+
+            inputFilename = argv[i];
+        }
+        else
+        if (lstrcmp(argv[i], L"-out") == 0)
+        {
+            if (i + 1 == argc)
+                return;
+            i++;
+
+            outputFilename = argv[i];
+        }
+    }
+}
+
+
+// -pid 47376 -out d:\temp\diagnostics\record_2_exceptions.bin
+// -in d:\temp\diagnostics\record_2_exceptionsFailed.bin -out d:\temp\diagnostics\record_2_exceptions.bin
+// -in d:\temp\diagnostics\record_exceptions_wcoutBroken.bin 
+int wmain(int argc, wchar_t* argv[])
 {
     // simulator pid
-    DWORD pid = 105028;
+    DWORD pid = 47376;  // 64 bit
+    const wchar_t* inputFilename;
+    const wchar_t* outputFilename;
+    ParseCommandLine(argc, argv, pid, inputFilename, outputFilename);
+    if ((pid == -1) && (inputFilename == nullptr))
+    {
+        std::cout << "Missing -pid <pid> or -in <recording filename>...\n";
+        return -1;
+    }
 
     //BasicConnection(pid);
 
-    DiagnosticsClient* pClient = DiagnosticsClient::Create(pid);
+    DiagnosticsClient* pClient = nullptr;
+    if (pid != -1)
+        pClient = DiagnosticsClient::Create(pid, outputFilename);
+    else
+    if (inputFilename != nullptr)
+        pClient = DiagnosticsClient::Create(inputFilename, outputFilename);
+
     if (pClient == nullptr)
         return -1;
 
@@ -187,9 +246,13 @@ int main()
     //ProcessInfoRequest request;
     //pClient->GetProcessInfo(request);
     //DumpProcessInfo(request);
+    //// Note: it seems that the connection gets closed after the response so pClient can't be reused
 
-    // listen to CLR exceptions events
-    auto pSession = pClient->OpenEventPipeSession(EventKeyword::exception, EventVerbosityLevel::Error);
+    // listen to CLR events
+    bool is64Bit = true; // TODO: need to figure out the bitness of monitored application (using the Process::ProcessInfo command)
+    
+    // TODO: pass an IIpcRecorder
+    auto pSession = pClient->OpenEventPipeSession(is64Bit, EventKeyword::exception, EventVerbosityLevel::Error);
     if (pSession != nullptr)
     {
         DWORD tid = 0;

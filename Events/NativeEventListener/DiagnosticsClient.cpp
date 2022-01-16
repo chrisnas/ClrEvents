@@ -1,14 +1,34 @@
 #include "DiagnosticsClient.h"
 #include "PidEndpoint.h"
+#include "RecordedEndpoint.h"
+#include "FileRecorder.h"
 
-DiagnosticsClient* DiagnosticsClient::Create(int pid)
+DiagnosticsClient* DiagnosticsClient::Create(int pid, const wchar_t* recordingFilename)
 {
-    IIpcEndpoint* pEndpoint = PidEndpoint::Create(pid);
+    FileRecorder* pRecorder = nullptr;
+    if (recordingFilename != nullptr)
+        pRecorder = new FileRecorder(recordingFilename);
+
+    IIpcEndpoint* pEndpoint = PidEndpoint::Create(pid, pRecorder);
     if (pEndpoint == nullptr)
         return nullptr;
 
     return new DiagnosticsClient(pid, pEndpoint);
 }
+
+DiagnosticsClient* DiagnosticsClient::Create(const wchar_t* recordFilename, const wchar_t* recordingFilename)
+{
+    IIpcEndpoint* pEndpoint = RecordedEndpoint::Create(recordFilename);
+    if (pEndpoint == nullptr)
+        return nullptr;
+
+    FileRecorder* pRecorder = nullptr;
+    if (recordingFilename != nullptr)
+        pRecorder = new FileRecorder(recordingFilename);
+
+    return new DiagnosticsClient(-1, pEndpoint);
+}
+
 
 
 DiagnosticsClient::DiagnosticsClient(int pid, IIpcEndpoint* pEndpoint)
@@ -33,12 +53,12 @@ bool DiagnosticsClient::GetProcessInfo(ProcessInfoRequest& request)
 }
 
 
-EventPipeSession* DiagnosticsClient::OpenEventPipeSession(EventKeyword keywords, EventVerbosityLevel verbosity)
+EventPipeSession* DiagnosticsClient::OpenEventPipeSession(bool is64Bit, EventKeyword keywords, EventVerbosityLevel verbosity)
 {
     EventPipeStartRequest request;
     if (!request.Process(_pEndpoint, keywords, verbosity))
         return nullptr;
 
-    auto session = new EventPipeSession(_pEndpoint, request.SessionId);
+    auto session = new EventPipeSession(is64Bit, _pEndpoint, request.SessionId);
     return session;
 }

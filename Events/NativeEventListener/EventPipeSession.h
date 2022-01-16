@@ -1,128 +1,14 @@
 #pragma once
+
 #include <unordered_map>
+#include <vector>
 #include <string>
 
 #include "IIpcEndpoint.h"
+#include "NettraceFormat.h"
 
+#include "BlockParser.h"
 
-enum class ObjectType : uint8_t
-{
-    Unknown = 0,
-    Trace,
-    EventBlock,
-    MetadataBlock,
-    StackBlock,
-    SequencePointBlock,
-};
-
-// from FastSerialization.Tag
-enum NettraceTag : uint8_t
-{
-    // from format spec - https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-    NullReference = 1,
-    BeginPrivateObject = 5,
-    EndObject = 6,
-
-    Error = 0,
-    ObjectReference = 2,
-    ForwardReference = 3,
-    BeginObject = 4,
-    ForwardDefinition = 7,
-    Byte = 8,
-    Int16 = 9,
-    Int32 = 10,
-    Int64 = 11,
-    SkipRegion = 12,
-    String = 13,
-    Blob = 14,
-    Limit = 15
-};
-
-#pragma pack(1)
-struct ObjectHeader
-{
-    NettraceTag TagTraceObject;         // 5
-    NettraceTag TagTypeObjectForTrace;  // 5
-    NettraceTag TagType;                // 1
-    uint32_t Version;                   // 
-    uint32_t MinReaderVersion;          // 
-    uint32_t NameLength;                // length of UTF8 name that follows
-};
-
-
-// filled up by EventPipeEventSource.FromStream(Deserializer)
-#pragma pack(1)
-struct ObjectFields
-{
-    uint16_t Year;
-    uint16_t Month;
-    uint16_t DayOfWeek;
-    uint16_t Day;
-    uint16_t Hour;
-    uint16_t Minute;
-    uint16_t Second;
-    uint16_t Millisecond;
-    uint64_t SyncTimeQPC;
-    uint64_t QPCFrequency;
-    uint32_t PointerSize;
-    uint32_t ProcessId;
-    uint32_t NumProcessors;
-    uint32_t ExpectedCPUSamplingRate;
-};
-
-
-// from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-#pragma pack(1)
-struct EventBlockHeader
-{
-    uint16_t HeaderSize;
-    uint16_t Flags;
-    uint64_t MinTimespamp;
-    uint64_t MaxTimespamp;
-
-    // some optional reserved space might be following
-};
-
-
-// from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-//
-
-
-#pragma pack(1)
-struct EventBlobHeader_V3
-{
-    uint32_t EventSize;
-    uint32_t MetaDataId;
-    uint32_t ThreadId;
-    uint64_t TimeStamp;
-    GUID ActivityID;
-    GUID RelatedActivityID;
-    uint32_t PayloadSize;
-};
-
-#pragma pack(1)
-struct EventBlobHeader_V4
-{
-    uint32_t EventSize;
-    uint32_t MetadataId;
-    uint32_t SequenceNumber;
-    uint64_t ThreadId;
-    uint64_t CaptureThreadId;
-    uint32_t ProcessorNumber;
-    uint32_t StackId;
-    uint64_t Timestamp;
-    GUID ActityId;
-    GUID RelatedActivityId;
-    uint32_t PayloadSize;
-};
-
-struct EventBlobHeader : EventBlobHeader_V4
-{
-    bool IsSorted;
-    uint32_t PayloadSize;
-    uint32_t HeaderSize;
-    uint32_t TotalNonHeaderSize;
-};
 
 class EventCacheThread
 {
@@ -131,24 +17,41 @@ public:
     uint64_t LastCachedEventTimestamp;
 };
 
-class EventCacheMetadata
+
+// from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
+#pragma pack(1)
+struct StackBlockHeader
 {
-public:
-    uint32_t MetadataId;
-    std::wstring ProviderName;
-    uint32_t EventId;
-    std::wstring EventName; // could be empty
-    uint64_t Keywords;
-    uint32_t Version;
-    uint32_t Level;
+    uint32_t FirstId;
+    uint32_t Count;
 };
 
+
+class EventCacheStack32
+{
+public:
+    uint32_t Id;
+    std::vector<uint32_t> Frames;
+};
+
+class EventCacheStack64
+{
+public:
+    uint32_t Id;
+    std::vector<uint64_t> Frames;
+};
+
+
+// TODO: define an interface IIEventPipeSession because it will propably
+//       be used by the profilers pipeline. Maybe just mocking IIpcEndPoint could be enough
 class EventPipeSession
 {
 public:
-    EventPipeSession(IIpcEndpoint* pEndpoint, uint64_t sessionId);
-    void Listen();
-    void Stop();
+    EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64_t sessionId);
+    ~EventPipeSession();
+
+    bool Listen();
+    bool Stop();
 
 public:
     DWORD Error;
@@ -183,30 +86,42 @@ private:
 
     // stack block parsing helpers
     bool ParseStackBlock(ObjectHeader& header);
+    bool ParseStack(uint32_t stackId, DWORD& size);
 
     // sequence point block parsing helpers
     bool ParseSequencePointBlock(ObjectHeader& header);
     
+    bool ExtractBlock(const char* blockName, uint32_t& blockSize, uint64_t& blockOriginInFile);
     bool ReadBlockSize(const char* blockName, uint32_t& blockSize);
     bool ReadCompressedHeader(EventBlobHeader& header, DWORD& size);
     bool ReadVarUInt32(uint32_t& val, DWORD& size);
     bool ReadVarUInt64(uint64_t& val, DWORD& size);
     bool ReadWString(std::wstring& wstring, DWORD& bytesRead);
-    
-    // dump if title is not null
+
     bool SkipBytes(DWORD byteCount);
     bool SkipPadding();
     bool SkipBlock(const char* blockName);
 
 private:
+    bool Is64Bit;
     IIpcEndpoint* _pEndpoint;
     uint64_t _sessionId;
     bool _stopRequested;
+
     
     // Keep track of the position since the beginning of the "file"
     // i.e. starting at 0 from the first character of the NettraceHeader
     //      Nettrace
     uint64_t _position;
+
+    // buffer used to read each block that will be then parsed
+    uint8_t* _pBlock;
+    uint32_t _blockSize;
+
+    // parsers
+    MetadataParser _metadataParser;
+    EventParser _eventParser;
+    StackParser _stackParser;
 
     // per block header
     EventBlobHeader _blobHeader;
@@ -216,5 +131,10 @@ private:
 
     // per metadataID event metadata description
     std::unordered_map<uint32_t, EventCacheMetadata> _metadata;
+
+    // per stackID stack
+    // only one will be used depending on the bitness of the monitored application
+    std::unordered_map<uint32_t, EventCacheStack32> _stacks32;
+    std::unordered_map<uint32_t, EventCacheStack64> _stacks64;
 };
 

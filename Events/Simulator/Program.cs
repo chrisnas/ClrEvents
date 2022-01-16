@@ -51,9 +51,9 @@ namespace EventTracing.Simulator
         static void Main(string[] args)
         {
             if (GCSettings.IsServerGC)
-                Console.WriteLine("BACKGROUND");
+                Console.WriteLine("GC - Server");
             else
-                Console.WriteLine("WORKSTATION");
+                Console.WriteLine("GC - Workstation");
 
             string invite = ComputeInvite();
             while (true)

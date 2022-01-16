@@ -51,7 +51,11 @@ void DumpBuffer(const uint8_t* pBuffer, DWORD byteCount)
         {
             std::cout << "   ";
         }
-        std::cout << "     ";
+
+        if (pos > LineWidth / 2)
+            std::cout << "    ";
+        else
+            std::cout << "     ";
         std::cout << stringBuffer;
         std::cout << "\n";
     }

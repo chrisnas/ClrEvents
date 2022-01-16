@@ -1,12 +1,13 @@
 #pragma once
 #include <windows.h>
 #include "IIpcEndpoint.h"
+#include "IIpcRecorder.h"
 
 
 class IpcEndpoint : public IIpcEndpoint
 {
 public:
-    IpcEndpoint();
+    IpcEndpoint(IIpcRecorder* pRecorder);
 
     // Implements IIpcEndpoint interface
     virtual bool Write(LPCVOID buffer, DWORD bufferSize, DWORD* writtenBytes) override;
@@ -26,8 +27,14 @@ protected:
     uint8_t* _pCurrentBuffer;
     uint8_t* _pNextBuffer;
     DWORD _readBytes;
-    
+
+    // used to record read bytes
+    IIpcRecorder* _pRecorder;
+
     // point to the first buffered byte to return
     uint16_t _pos;
+
+private:
+    bool Record(LPCVOID pBuffer, DWORD size);
 };
 

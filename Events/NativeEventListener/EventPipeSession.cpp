@@ -76,46 +76,61 @@ bool CheckTraceObjectHeader(TraceObjectHeader& header)
     return true;
 }
 
+const uint32_t BLOCK_SIZE = 4096;
+
+//EventPipeSession::EventPipeSession()
+//{
+//    Error = 0;
+//
+//    _position = 0;
+//    _stopRequested = false;
+//    _blobHeader = {};
+//    _blockSize = BLOCK_SIZE;
+//    _pBlock = new uint8_t[_blockSize];
+//    ::ZeroMemory(_pBlock, _blockSize);
+//}
 
 
-EventPipeSession::EventPipeSession()
+EventPipeSession::EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64_t sessionId)
+    :
+    _metadataParser(_metadata), 
+    _eventParser(_metadata)
 {
-    Error = 0;
-
-    _position = 0;
-    _pEndpoint = nullptr;
-    _sessionId = 0;
-    _stopRequested = false;
-    _blobHeader = {};
-}
-
-EventPipeSession::EventPipeSession(IIpcEndpoint* pEndpoint, uint64_t sessionId)
-{
-    Error = 0;
-
-    _position = 0;
+    Is64Bit = is64Bit;
     _pEndpoint = pEndpoint;
     _sessionId = sessionId;
+
+    Error = 0;
+
+    _position = 0;
     _stopRequested = false;
     _blobHeader = {};
+    _blockSize = BLOCK_SIZE;
+    _pBlock = new uint8_t[_blockSize];
+    ::ZeroMemory(_pBlock, _blockSize);
 }
 
-void EventPipeSession::Listen()
+EventPipeSession::~EventPipeSession()
+{
+    delete [] _pBlock;
+}
+
+bool EventPipeSession::Listen()
 {
     if (!ReadHeader())
-        return;
+        return false;
 
     if (!ReadTraceObjectHeader())
-        return;
+        return false;
 
     ObjectFields ofTrace;
     if (!ReadObjectFields(ofTrace))
-        return;
+        return false;
 
     // don't forget to check the end object tag
     uint8_t tag;
     if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
-        return;
+        return false;
 
     while (ReadNextObject() && !_stopRequested)
     {
@@ -123,94 +138,41 @@ void EventPipeSession::Listen()
     }
     
     // ??? the response to the StopTracing command could be received here: do we need to send it using another endpoint?
+
+    return _stopRequested;
 }
 
 
-bool EventPipeSession::Read(LPVOID buffer, DWORD bufferSize)
+StopSessionMessage* CreateStopMessage(uint64_t sessionId)
 {
-    DWORD readBytes = 0;
-    auto success = _pEndpoint->Read(buffer, bufferSize, &readBytes);
-    if (success)
-        _position += readBytes;
+    auto message = new StopSessionMessage();
+    ::ZeroMemory(message, sizeof(message));
+    memcpy(message->Magic, &DotnetIpcMagic_V1, sizeof(message->Magic));
+    message->Size = sizeof(StartSessionMessage);
+    message->CommandSet = (uint8_t)DiagnosticServerCommandSet::EventPipe;
+    message->CommandId = (uint8_t)EventPipeCommandId::CollectTracing2;
+    message->Reserved = 0;
+    message->SessionId = sessionId;
 
-    return success;
+    return message;
 }
 
-bool EventPipeSession::ReadByte(uint8_t& byte)
+bool EventPipeSession::Stop()
 {
-    return Read(&byte, sizeof(uint8_t));
-}
+    _stopRequested = true;
 
-bool EventPipeSession::ReadWord(uint16_t& word)
-{
-    return Read(&word, sizeof(uint16_t));
-}
-
-bool EventPipeSession::ReadDWord(uint32_t& dword)
-{
-    return Read(&dword, sizeof(uint32_t));
-}
-
-bool EventPipeSession::ReadLong(uint64_t& ulong)
-{
-    return Read(&ulong, sizeof(uint64_t));
-}
-
-bool EventPipeSession::ReadHeader()
-{
-    NettraceHeader header;
-    if (!Read(&header, sizeof(header)))
+    auto message = CreateStopMessage(_sessionId);
+    DWORD writtenBytes;
+    if (!_pEndpoint->Write(&message, sizeof(message), &writtenBytes))
     {
-        Error = ::GetLastError();
-        std::cout << "Error while reading Nettrace header: 0x" << std::hex << Error << std::dec << "\n";
-        return false;
-    }
-
-    return CheckNettraceHeader(header);
-}
-
-bool EventPipeSession::ReadTraceObjectHeader()
-{
-    TraceObjectHeader header;
-    if (!Read(&header, sizeof(header)))
-    {
-        Error = ::GetLastError();
-        std::cout << "Error while reading Trace Object header: 0x" << std::hex << Error << std::dec << "\n";
-        return false;
-    }
-
-    return CheckTraceObjectHeader(header);
-}
-
-bool EventPipeSession::ReadObjectFields(ObjectFields& objectFields)
-{
-    if (!Read(&objectFields, sizeof(objectFields)))
-    {
-        Error = ::GetLastError();
-        std::cout << "Error while reading Object fields: 0x" << std::hex << Error << std::dec << "\n";
+        auto error = ::GetLastError();
+        std::cout << "Error while sending EventPipe Stop message to the CLR: 0x" << std::hex << error << std::dec << "\n";
         return false;
     }
 
     return true;
 }
 
-bool EventPipeSession::SkipPadding()
-{
-    if (_position % 4 != 0)
-    {
-        // need to skip the padding
-        uint8_t paddingLength = 4 - (_position % 4);
-        uint8_t padding[4];
-        if (!Read(padding, paddingLength))
-        {
-            Error = ::GetLastError();
-            std::cout << "Error while skipping padding (" << paddingLength << " bytes): 0x" << std::hex << Error << std::dec << "\n";
-            return false;
-        }
-    }
-
-    return true;
-}
 
 
 // look at FastSerialization implementation with a decompiler:
@@ -313,7 +275,6 @@ ObjectType EventPipeSession::GetObjectType(ObjectHeader& header)
     return ObjectType::Unknown;
 }
 
-
 bool EventPipeSession::ReadBlockSize(const char* blockName, uint32_t& blockSize)
 {
     if (!ReadDWord(blockSize))
@@ -330,23 +291,6 @@ bool EventPipeSession::ReadBlockSize(const char* blockName, uint32_t& blockSize)
 
     return true;
 }
-
-
-
-// look at:
-//  Microsoft.Diagnostics.Tracing.EventPipeEventHeader.ReadFromFormatV4()
-//  https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeEventSource.cs
-enum CompressedHeaderFlags
-{
-    MetadataId                  = 1 << 0,
-    CaptureThreadAndSequence    = 1 << 1,
-    ThreadId                    = 1 << 2,
-    StackId                     = 1 << 3,
-    ActivityId                  = 1 << 4,
-    RelatedActivityId           = 1 << 5,
-    Sorted                      = 1 << 6,
-    DataLength                  = 1 << 7
-};
 
 bool EventPipeSession::ReadVarUInt32(uint32_t& val, DWORD& size)
 {
@@ -486,14 +430,14 @@ bool EventPipeSession::ReadCompressedHeader(EventBlobHeader& header, DWORD& size
 
     if ((flags & CompressedHeaderFlags::ActivityId) != 0)
     {
-        if (!Read(&header.ActityId, sizeof(header.ActityId)))
+        if (!Read(&header.ActivityId, sizeof(header.ActivityId)))
         {
             Error = ::GetLastError();
             std::cout << "Error while reading compressed header activity ID: 0x" << std::hex << Error << std::dec << "\n";
             return false;
         }
 
-        size += sizeof(header.ActityId);
+        size += sizeof(header.ActivityId);
     }
 
     if ((flags & (byte)CompressedHeaderFlags::RelatedActivityId) != 0)
@@ -526,126 +470,20 @@ bool EventPipeSession::ReadCompressedHeader(EventBlobHeader& header, DWORD& size
     return true;
 }
 
-void DumpBlobHeader(EventBlobHeader& header)
-{
-    std::cout << "\nblob header:\n";
-    std::cout << "   EventSize         = " << header.EventSize << "\n";
-    std::cout << "   MetadataId        = " << header.MetadataId << "\n";
-    std::cout << "   SequenceNumber    = " << header.SequenceNumber << "\n";
-    std::cout << "   ThreadId          = " << header.ThreadId << "\n";
-    std::cout << "   CaptureThreadId   = " << header.CaptureThreadId << "\n";
-    std::cout << "   ProcessorNumber   = " << header.ProcessorNumber << "\n";
-    std::cout << "   StackId           = " << header.StackId << "\n";
-    std::cout << "   Timestamp         = " << header.Timestamp << "\n";
-    std::cout << "   ActityId          = "; DumpGuid(header.ActityId); std::cout << "\n";
-    std::cout << "   RelatedActivityId = "; DumpGuid(header.RelatedActivityId); std::cout << "\n";
-}
-
-
-enum EventIDs : uint32_t
-{
-    AllocationTick  = 10,
-    ExceptionThrown = 80,
-    ContentionStart = 81,
-    ContentionStop  = 91,
-};
-
-// look at:
-//      Microsoft.Diagnostics.Tracing.EventPipe.EventCache.ProcessEventBlock()
-bool EventPipeSession::ParseEventBlob(bool isCompressed, DWORD& blobSize)
-{
-    EventBlobHeader header = {};
-    
-    if (isCompressed)
-    {
-        ReadCompressedHeader(header, blobSize);
-    }
-    else
-    {
-        // TODO: read directly from the stream
-    }
-
-    //// TODO: uncomment to show blob header
-    //DumpBlobHeader(header);
-
-    auto& metadataDef = _metadata[header.MetadataId];
-    if (metadataDef.MetadataId == 0)
-    {
-        // this should never occur: no definition was previously received
-
-        uint8_t* pBuffer = new uint8_t[header.PayloadSize];
-        if (!Read(pBuffer, header.PayloadSize))
-        {
-            Error = ::GetLastError();
-            std::cout << "Error while reading EventBlob payload: 0x" << std::hex << Error << std::dec << "\n";
-
-            delete[] pBuffer;
-            return false;
-        }
-
-        std::cout << "Event blob\n";
-        DumpBuffer(pBuffer, header.PayloadSize);
-        delete[] pBuffer;
-    }
-
-    switch (metadataDef.EventId)
-    {
-        case EventIDs::ExceptionThrown:
-            if (!OnExceptionThrown(header.PayloadSize, metadataDef))
-            {
-                return false;
-            }
-        break;
-
-        default:
-        {
-            std::cout << "Event = " << metadataDef.EventId << "\n";
-            SkipBytes(header.PayloadSize);
-        }
-    }
-
-
-    blobSize += header.PayloadSize;
-
-    return true;
-}
-
-// from https://docs.microsoft.com/en-us/dotnet/framework/performance/exception-thrown-v1-etw-event
-bool EventPipeSession::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef)
-{
-    DWORD readBytesCount = 0;
-    DWORD size = 0;
-
-    // string: exception type
-    // string: exception message
-    // Note: followed by "instruction pointer" 
-    //          could be 32 bit or 64 bit: how to figure out the bitness of the monitored application?
-    std::wstring strBuffer;
-    strBuffer.reserve(128);
-    std::wcout << "\nException thrown:\n";
-
-    if (!ReadWString(strBuffer, size))
-    {
-        Error = ::GetLastError();
-        std::cout << "Error while reading exception thrown type name: 0x" << std::hex << Error << std::dec << "\n";
-        return false;
-    }
-    readBytesCount += size;
-    std::wcout << "   type    = " << strBuffer << "\n";
-
-    strBuffer.clear();
-    if (!ReadWString(strBuffer, size))
-    {
-        Error = ::GetLastError();
-        std::cout << "Error while reading exception thrown type name: 0x" << std::hex << Error << std::dec << "\n";
-        return false;
-    }
-    readBytesCount += size;
-    std::wcout << "   message = " << strBuffer << "\n";
-
-    // skip the rest of the payload
-    return SkipBytes(payloadSize - readBytesCount);
-}
+//void DumpBlobHeader(EventBlobHeader& header)
+//{
+//    std::cout << "\nblob header:\n";
+//    std::cout << "   PayloadSize       = " << header.PayloadSize << "\n";
+//    std::cout << "   MetadataId        = " << header.MetadataId << "\n";
+//    std::cout << "   SequenceNumber    = " << header.SequenceNumber << "\n";
+//    std::cout << "   ThreadId          = " << header.ThreadId << "\n";
+//    std::cout << "   CaptureThreadId   = " << header.CaptureThreadId << "\n";
+//    std::cout << "   ProcessorNumber   = " << header.ProcessorNumber << "\n";
+//    std::cout << "   StackId           = " << header.StackId << "\n";
+//    std::cout << "   Timestamp         = " << header.Timestamp << "\n";
+//    std::cout << "   ActivityId        = "; DumpGuid(header.ActivityId); std::cout << "\n";
+//    std::cout << "   RelatedActivityId = "; DumpGuid(header.RelatedActivityId); std::cout << "\n";
+//}
 
 
 // look at:
@@ -655,12 +493,19 @@ bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
     if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
-    // TODO: uncomment to dump the event block
+    //// TODO: uncomment to dump the event block instead of parsing it
     //return SkipBlock("Event");
+
+    uint32_t blockSize = 0;
+
+    // read the block and send it to the corresponding parser
+    uint64_t blockOriginInFile = 0;
+    if (!ExtractBlock("Event", blockSize, blockOriginInFile))
+        return false;
+    return _eventParser.Parse(_pBlock, blockSize, blockOriginInFile);
 
 
     // get the block size
-    uint32_t blockSize = 0;
     if (!ReadBlockSize("Event", blockSize))
         return false;
 
@@ -715,6 +560,103 @@ bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
 }
 
 
+// look at:
+//      Microsoft.Diagnostics.Tracing.EventPipe.EventCache.ProcessEventBlock()
+bool EventPipeSession::ParseEventBlob(bool isCompressed, DWORD& blobSize)
+{
+    EventBlobHeader header = {};
+
+    if (isCompressed)
+    {
+        ReadCompressedHeader(header, blobSize);
+    }
+    else
+    {
+        // TODO: read directly from the stream
+    }
+
+    // TODO: uncomment to show blob header
+    DumpBlobHeader(header);
+
+    auto& metadataDef = _metadata[header.MetadataId];
+    if (metadataDef.MetadataId == 0)
+    {
+        // this should never occur: no definition was previously received
+
+        uint8_t* pBuffer = new uint8_t[header.PayloadSize];
+        if (!Read(pBuffer, header.PayloadSize))
+        {
+            Error = ::GetLastError();
+            std::cout << "Error while reading EventBlob payload: 0x" << std::hex << Error << std::dec << "\n";
+
+            delete[] pBuffer;
+            return false;
+        }
+
+        std::cout << "Event blob\n";
+        DumpBuffer(pBuffer, header.PayloadSize);
+        delete[] pBuffer;
+    }
+
+    switch (metadataDef.EventId)
+    {
+        case EventIDs::ExceptionThrown:
+            if (!OnExceptionThrown(header.PayloadSize, metadataDef))
+            {
+                return false;
+            }
+            break;
+
+        default:
+        {
+            std::cout << "Event = " << metadataDef.EventId << "\n";
+            SkipBytes(header.PayloadSize);
+        }
+    }
+
+    blobSize += header.PayloadSize;
+
+    return true;
+}
+
+// from https://docs.microsoft.com/en-us/dotnet/framework/performance/exception-thrown-v1-etw-event
+bool EventPipeSession::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef)
+{
+    DWORD readBytesCount = 0;
+    DWORD size = 0;
+
+    // string: exception type
+    // string: exception message
+    // Note: followed by "instruction pointer" 
+    //          could be 32 bit or 64 bit: how to figure out the bitness of the monitored application?
+    std::wstring strBuffer;
+    strBuffer.reserve(128);
+    std::cout << "\nException thrown:\n";
+
+    if (!ReadWString(strBuffer, size))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading exception thrown type name: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+    readBytesCount += size;
+    std::wcout << L"   type    = " << strBuffer << L"\n";
+
+    strBuffer.clear();
+    if (!ReadWString(strBuffer, size))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading exception thrown type name: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+    readBytesCount += size;
+    std::wcout << L"   message = " << strBuffer << L"\n";
+
+    // skip the rest of the payload
+    return SkipBytes(payloadSize - readBytesCount);
+}
+
+
 // look at implementation:
 //  TraceEventNativeMethods.EVENT_RECORD* ReadEvent() implementation
 //  EventPipeBlock.FromStream(Deserializer)
@@ -726,63 +668,74 @@ bool EventPipeSession::ParseMetadataBlock(ObjectHeader& header)
     // TODO: uncomment to dump metadata block
     //return SkipBlock("Metadata");
 
-    // TODO: this is the same code as in ParseEventBlock
-    // get the block size
     uint32_t blockSize = 0;
-    if (!ReadBlockSize("Metadata", blockSize))
+
+    // read the block and send it to the corresponding parser
+    uint64_t blockOriginInFile = 0;
+    if (!ExtractBlock("Metadata", blockSize, blockOriginInFile))
         return false;
+    return _metadataParser.Parse(_pBlock, blockSize, blockOriginInFile);
 
-    // read event block header
-    EventBlockHeader ebHeader = {};
-    if (!Read(&ebHeader, sizeof(ebHeader)))
-    {
-        Error = ::GetLastError();
-        std::cout << "Error while reading MetadataBlock header: 0x" << std::hex << Error << std::dec << "\n";
-        return false;
-    }
 
-    // skip any optional content if any
-    if (ebHeader.HeaderSize > sizeof(EventBlockHeader))
-    {
-        uint8_t optionalSize = ebHeader.HeaderSize - sizeof(EventBlockHeader);
-        uint8_t* pBuffer = new uint8_t[optionalSize];
-        if (!Read(pBuffer, optionalSize))
-        {
-            Error = ::GetLastError();
-            std::cout << "Error while skipping optional info from MetadataBlock header: 0x" << std::hex << Error << std::dec << "\n";
-            return false;
-        }
-    }
+    //// TODO: this is the same code as in ParseEventBlock
+    //// get the block size
+    //if (!ReadBlockSize("Metadata", blockSize))
+    //    return false;
 
-    // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-    // the rest of the block is a list of Event blobs
-    // 
-    DWORD blobSize = 0;
-    DWORD totalBlobSize = 0;
-    DWORD remainingBlockSize = blockSize - ebHeader.HeaderSize;
-    bool isCompressed = ((ebHeader.Flags & 1) == 1);
-    while (ParseMetadataBlob(isCompressed, blobSize))
-    {
-        totalBlobSize += blobSize;
+    //// read event block header
+    //EventBlockHeader ebHeader = {};
+    //if (!Read(&ebHeader, sizeof(ebHeader)))
+    //{
+    //    Error = ::GetLastError();
+    //    std::cout << "Error while reading MetadataBlock header: 0x" << std::hex << Error << std::dec << "\n";
+    //    return false;
+    //}
 
-        if (totalBlobSize >= remainingBlockSize - 1) // try to detect last blob
-        {
-            // don't forget to check the end block tag
-            uint8_t tag;
-            if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
-            {
-                return false;
-            }
+    //// skip any optional content if any
+    //if (ebHeader.HeaderSize > sizeof(EventBlockHeader))
+    //{
+    //    uint8_t optionalSize = ebHeader.HeaderSize - sizeof(EventBlockHeader);
+    //    uint8_t* pBuffer = new uint8_t[optionalSize];
+    //    if (!Read(pBuffer, optionalSize))
+    //    {
+    //        Error = ::GetLastError();
+    //        std::cout << "Error while skipping optional info from MetadataBlock header: 0x" << std::hex << Error << std::dec << "\n";
+    //        delete [] pBuffer;
+    //        return false;
+    //    }
+    //    delete [] pBuffer;
+    //}
 
-            return true;
-        }
-    }
+    //// from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
+    //// the rest of the block is a list of Event blobs
+    //// 
+    //DWORD blobSize = 0;
+    //DWORD totalBlobSize = 0;
+    //DWORD remainingBlockSize = blockSize - ebHeader.HeaderSize;
+    //bool isCompressed = ((ebHeader.Flags & 1) == 1);
+    //while (ParseMetadataBlob(isCompressed, blobSize))
+    //{
+    //    totalBlobSize += blobSize;
 
-    return false;
+    //    if (totalBlobSize >= remainingBlockSize - 1) // try to detect last blob
+    //    {
+    //        // don't forget to check the end block tag
+    //        uint8_t tag;
+    //        if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
+    //        {
+    //            return false;
+    //        }
+
+    //        return true;
+    //    }
+    //}
+
+    //return false;
 }
 
 const std::wstring DotnetRuntimeProvider = L"Microsoft-Windows-DotNETRuntime";
 const std::wstring EventPipeProvider = L"Microsoft-DotNETCore-EventPipe";
+
 
 bool EventPipeSession::ParseMetadataBlob(bool isCompressed, DWORD& blobSize)
 {
@@ -893,17 +846,7 @@ bool EventPipeSession::ParseMetadataBlob(bool isCompressed, DWORD& blobSize)
     }
     readBytesCount += sizeof(metadataDef.Level);
 
-    std::cout << "\nMetadata definition:\n";
-    std::cout << "   Provider: ";
-    std::wcout << metadataDef.ProviderName.c_str();
-    std::cout << "\n";
-    std::cout << "   Name    : ";
-    std::wcout << metadataDef.EventName.c_str();
-    std::cout << "\n";
-    std::cout << "   ID      : " << metadataDef.EventId << "\n";
-    std::cout << "   Version : " << metadataDef.Version << "\n";
-    std::cout << "   Keywords: 0x" << std::hex << metadataDef.Keywords << std::dec << "\n";
-    std::cout << "   Level   : " << metadataDef.Level << "\n";
+    DumpMetadataDefinition(metadataDef);
 
     // skip remaining payload
     SkipBytes(header.PayloadSize - readBytesCount);
@@ -912,13 +855,143 @@ bool EventPipeSession::ParseMetadataBlob(bool isCompressed, DWORD& blobSize)
     return true;
 }
 
+
+
+void DumpStackHeader(StackBlockHeader header)
+{
+    std::cout << "\nStack block header:\n";
+    std::cout << "   FirstID: " << header.FirstId << "\n";
+    std::cout << "   Count  : " << header.Count << "\n";
+}
+
 bool EventPipeSession::ParseStackBlock(ObjectHeader& header)
 {
     if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
-    return SkipBlock("Stack");
+    //// uncomment to dump stack block
+    //return SkipBlock("Stack");
+
+    // get the block size
+    uint32_t blockSize = 0;
+    if (!ReadBlockSize("Stack block", blockSize))
+        return false;
+
+    StackBlockHeader stackHeader;
+    if (!Read(&stackHeader, sizeof(stackHeader)))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading stack block header: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+
+    DumpStackHeader(stackHeader);
+
+    //// uncomment to dump stack block payload
+    //std::cout << "Stack payload\n";
+    //return SkipBytes(blockSize+1 - sizeof(stackHeader));
+
+    // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
+    //
+    // The payload contains callstacks as a sequence of: 
+    //   uint32_t bytesCount
+    //   list of addresses (up to bytesCount)
+    // the id of each callstack is computed based on the stackHeader.FirstId
+    // (i.e. incrementing it after a callstack is read)
+    // Note: it is possible to have empty callstack (bytesCount == 0)
+
+    uint32_t stackId = stackHeader.FirstId;
+    DWORD stackSize = 0;
+    DWORD totalStacksSize = 0;
+    DWORD remainingBlockSize = blockSize - sizeof(stackHeader);
+    while (ParseStack(stackId, stackSize))
+    {
+        stackId++;
+        totalStacksSize += stackSize;
+
+        if (totalStacksSize >= remainingBlockSize - 1) // try to detect last stack
+        {
+            // don't forget to check the end block tag
+            uint8_t tag;
+            if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
+            {
+                return false;
+            }
+
+            return true;
+        }
+    }
+
+    return false;
 }
+
+bool EventPipeSession::ParseStack(uint32_t stackId, DWORD& size)
+{
+    uint32_t stackSize;
+    if (!ReadDWord(stackSize))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading stack #" << stackId << " size: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+    size += sizeof(stackSize);
+
+    uint8_t frameSize = (Is64Bit ? 8 : 4);
+    uint16_t frameCount = stackSize / frameSize;
+
+    // check for empty stacks
+    if (frameCount == 0)
+        return true;
+
+    if (Is64Bit)
+    {
+        _stacks64[stackId].Id = stackId;
+        _stacks64[stackId].Frames.reserve(frameCount);
+    }
+    else
+    {
+        _stacks32[stackId].Id = stackId;
+        _stacks32[stackId].Frames.reserve(frameCount);
+    }
+
+    std::cout << frameCount << " frames\n";
+    // add frames
+    for (size_t i = 0; i < frameCount; i++)
+    {
+        if (Is64Bit)
+        {
+            uint64_t frame;
+            if (!ReadLong(frame))
+            {
+                Error = ::GetLastError();
+                std::cout << "Error while reading stack frame #" << i << " size: 0x" << std::hex << Error << std::dec << "\n";
+                return false;
+            }
+            size+= sizeof(frame);
+
+            _stacks64[stackId].Frames.push_back(frame);
+            std::cout << "   " << std::hex << frame << std::dec << "\n";
+        }
+        else
+        {
+            uint32_t frame;
+            if (!ReadDWord(frame))
+            {
+                Error = ::GetLastError();
+                std::cout << "Error while reading stack frame #" << i << " size: 0x" << std::hex << Error << std::dec << "\n";
+                return false;
+            }
+            size+= sizeof(frame);
+
+            _stacks32[stackId].Frames.push_back(frame);
+            std::cout << "   " << std::hex << frame << std::dec << "\n";
+        }
+    }
+
+    return true;
+}
+
+
 
 bool EventPipeSession::ParseSequencePointBlock(ObjectHeader& header)
 {
@@ -928,6 +1001,42 @@ bool EventPipeSession::ParseSequencePointBlock(ObjectHeader& header)
     return SkipBlock("SequencePoint");
 }
 
+
+bool EventPipeSession::ExtractBlock(const char* blockName, uint32_t& blockSize, uint64_t& blockOriginInFile)
+{
+    // get the block size
+    if (!ReadBlockSize(blockName, blockSize))
+        return false;
+
+    // skip the block + final EndOfObject tag
+    blockSize++;
+
+    // check if it is needed to resize the block buffer
+    if (_blockSize < blockSize)
+    {
+        // don't expect blocks larger than 32KB
+        if (blockSize > 8 * BLOCK_SIZE)
+            return false;
+
+        delete [] _pBlock;
+        _pBlock = new uint8_t[blockSize];
+        ::ZeroMemory(_pBlock, blockSize);
+        _blockSize = blockSize;
+    }
+
+    // keep track of the current position in file for padding
+    blockOriginInFile = _position;
+    if (!Read(_pBlock, blockSize))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while extracting " << blockName << " block: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+    std::cout << "\n" << blockName << " block (" << blockSize << " bytes)\n";
+    DumpBuffer(_pBlock, blockSize);
+
+    return true;
+}
 
 bool EventPipeSession::SkipBlock(const char* blockName)
 {
@@ -966,6 +1075,7 @@ bool EventPipeSession::SkipBytes(DWORD byteCount)
     return success;
 }
 
+
 // read UTF16 character one after another until the \0 us found to rebuild a string
 bool EventPipeSession::ReadWString(std::wstring& wstring, DWORD& bytesRead)
 {
@@ -987,33 +1097,91 @@ bool EventPipeSession::ReadWString(std::wstring& wstring, DWORD& bytesRead)
     }
 }
 
-
-
-StopSessionMessage* CreateStopMessage(uint64_t sessionId)
+bool EventPipeSession::Read(LPVOID buffer, DWORD bufferSize)
 {
-    auto message = new StopSessionMessage();
-    ::ZeroMemory(message, sizeof(message));
-    memcpy(message->Magic, &DotnetIpcMagic_V1, sizeof(message->Magic));
-    message->Size = sizeof(StartSessionMessage);
-    message->CommandSet = (uint8_t)DiagnosticServerCommandSet::EventPipe;
-    message->CommandId = (uint8_t)EventPipeCommandId::CollectTracing2;
-    message->Reserved = 0;
-    message->SessionId = sessionId;
+    DWORD readBytes = 0;
+    auto success = _pEndpoint->Read(buffer, bufferSize, &readBytes);
+    if (success)
+    {
+        _position += readBytes;
+    }
 
-    return message;
+    return success;
 }
 
-void EventPipeSession::Stop()
+bool EventPipeSession::ReadByte(uint8_t& byte)
 {
-    _stopRequested = true;
+    return Read(&byte, sizeof(uint8_t));
+}
 
-    auto message = CreateStopMessage(_sessionId);
-    DWORD writtenBytes;
-    if (!_pEndpoint->Write(&message, sizeof(message), &writtenBytes))
+bool EventPipeSession::ReadWord(uint16_t& word)
+{
+    return Read(&word, sizeof(uint16_t));
+}
+
+bool EventPipeSession::ReadDWord(uint32_t& dword)
+{
+    return Read(&dword, sizeof(uint32_t));
+}
+
+bool EventPipeSession::ReadLong(uint64_t& ulong)
+{
+    return Read(&ulong, sizeof(uint64_t));
+}
+
+bool EventPipeSession::ReadHeader()
+{
+    NettraceHeader header;
+    if (!Read(&header, sizeof(header)))
     {
-        auto error = ::GetLastError();
-        std::cout << "Error while sending EventPipe stop message to the CLR: 0x" << std::hex << error << std::dec << "\n";
-        return;
+        Error = ::GetLastError();
+        std::cout << "Error while reading Nettrace header: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
     }
+
+    return CheckNettraceHeader(header);
+}
+
+bool EventPipeSession::ReadTraceObjectHeader()
+{
+    TraceObjectHeader header;
+    if (!Read(&header, sizeof(header)))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading Trace Object header: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+
+    return CheckTraceObjectHeader(header);
+}
+
+bool EventPipeSession::ReadObjectFields(ObjectFields& objectFields)
+{
+    if (!Read(&objectFields, sizeof(objectFields)))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading Object fields: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool EventPipeSession::SkipPadding()
+{
+    if (_position % 4 != 0)
+    {
+        // need to skip the padding
+        uint8_t paddingLength = 4 - (_position % 4);
+        uint8_t padding[4];
+        if (!Read(padding, paddingLength))
+        {
+            Error = ::GetLastError();
+            std::cout << "Error while skipping padding (" << paddingLength << " bytes): 0x" << std::hex << Error << std::dec << "\n";
+            return false;
+        }
+    }
+
+    return true;
 }
 

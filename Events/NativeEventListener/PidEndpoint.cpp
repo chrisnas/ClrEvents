@@ -1,27 +1,29 @@
 #include <iostream>
 #include <stdio.h>
 
+#include "IIpcRecorder.h"
 #include "PidEndpoint.h"
 
 
-PidEndpoint::PidEndpoint()
+PidEndpoint::PidEndpoint(IIpcRecorder* pRecorder)
+    : IpcEndpoint(pRecorder)
 {
 }
 
-PidEndpoint* PidEndpoint::Create(int pid)
+PidEndpoint* PidEndpoint::Create(int pid, IIpcRecorder* pRecorder)
 {
     if (pid <= 0)
         return nullptr;
 
 // TODO: implement the Linux version based on Domain Socket instead of named pipe
     
-    return CreateForWindows(pid);
+    return CreateForWindows(pid, pRecorder);
 
 }
 
-PidEndpoint* PidEndpoint::CreateForWindows(int pid)
+PidEndpoint* PidEndpoint::CreateForWindows(int pid, IIpcRecorder* pRecorder)
 {
-    PidEndpoint* pEndpoint = new PidEndpoint();
+    PidEndpoint* pEndpoint = new PidEndpoint(pRecorder);
 
     // https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew
     wchar_t pszPipeName[256];

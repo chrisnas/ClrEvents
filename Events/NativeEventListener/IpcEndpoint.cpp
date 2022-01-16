@@ -1,18 +1,19 @@
 #include <type_traits>
+#include "IIpcRecorder.h"
 #include "IpcEndpoint.h"
 
 
 // 2 buffers are allocated
 const uint16_t BufferSize = 2 * 1024;  // 2 KB
 
-IpcEndpoint::IpcEndpoint()
+IpcEndpoint::IpcEndpoint(IIpcRecorder* pRecorder)
 {
     _handle = 0;
     _pCurrentBuffer = new uint8_t[BufferSize];
     _pNextBuffer = new uint8_t[BufferSize];
     _readBytes = 0;
     _pos = 0;
-
+    _pRecorder = pRecorder;
 }
 
 IpcEndpoint::~IpcEndpoint()
@@ -25,7 +26,7 @@ IpcEndpoint::~IpcEndpoint()
 
 // from CLR diagnosticsprotocol.h
 template <typename T>
-bool Parse(HANDLE handle, T& result)
+bool Parse(IpcEndpoint* pEndpoint, T& result)
 {
     static_assert(
         std::is_integral<T>::value
@@ -36,7 +37,7 @@ bool Parse(HANDLE handle, T& result)
         "Can only be instantiated with integral and floating point types.");
 
     DWORD readBytes = 0;
-    return ::ReadFile(handle, &result, sizeof(result), &readBytes, nullptr);
+    return pEndpoint->Read(&result, sizeof(result), &readBytes);
 }
 
 
@@ -46,6 +47,8 @@ bool Parse(HANDLE handle, T& result)
 bool IpcEndpoint::Write(LPCVOID buffer, DWORD bufferSize, DWORD* writtenBytes)
 {
     DWORD bytesWrittenCount = 0;
+
+    // TODO: do we need to record what is sent?
     return ::WriteFile(_handle, buffer, bufferSize, writtenBytes, nullptr);
 }
 
@@ -66,49 +69,36 @@ bool IpcEndpoint::Read(LPVOID buffer, DWORD bufferSize, DWORD* readBytes)
     }
 
     *readBytes = totalReadBytes;
+    Record(pBuffer, totalReadBytes);
+
     return true;
-    //// handle buffering
-    //if (_pos == 0)
-    //{
-    //    // need to read at least bufferSize
-    //    DWORD totalReadBytes = 0;
-    //    while (totalReadBytes < bufferSize)
-    //    {
-    //        DWORD readBytes = 0;
-    //        if (!::ReadFile(_handle, _pCurrentBuffer, BufferSize, &readBytes, nullptr))
-    //        {
-    //            return false;
-    //        }
-    //        totalReadBytes += readBytes;
-
-    //    }
-    //    _readBytes = totalReadBytes;
-
-
-
-    //    return true;
-    //}
-
-    //return ::ReadFile(_handle, buffer, bufferSize, readBytes, nullptr);
 }
 
 bool IpcEndpoint::ReadByte(uint8_t& byte)
 {
-    return Parse(_handle, byte);
+    return Parse(this, byte);
 }
 
 bool IpcEndpoint::ReadWord(uint16_t& word)
 {
-    return Parse(_handle, word);
+    return Parse(this, word);
 }
 
 bool IpcEndpoint::ReadDWord(uint32_t& dword)
 {
-    return Parse(_handle, dword);
+    return Parse(this, dword);
 }
 
 bool IpcEndpoint::ReadLong(uint64_t& ulong)
 {
-    return Parse(_handle, ulong);
+    return Parse(this, ulong);
+}
+
+bool IpcEndpoint::Record(LPCVOID pBuffer, DWORD size)
+{
+    if (_pRecorder == nullptr)
+        return true;
+
+    return _pRecorder->Write(pBuffer, size);
 }
 

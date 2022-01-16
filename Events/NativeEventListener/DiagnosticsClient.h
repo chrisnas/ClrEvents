@@ -7,7 +7,8 @@
 class DiagnosticsClient
 {
 public:
-    static DiagnosticsClient* Create(int pid);
+    static DiagnosticsClient* Create(int pid, const wchar_t* recordingFilename);
+    static DiagnosticsClient* Create(const wchar_t* recordFilename, const wchar_t* recordingFilename);
     ~DiagnosticsClient();
 
     // Expose the available commands from the protocol
@@ -19,7 +20,7 @@ public:
     // EVENTPIPE
     // Don't forget to call EventPipeSession::Stop() to send the Stop command 
     // and cancel the receiving of CLR events after EventPipeSession::Listen() is called
-    EventPipeSession* OpenEventPipeSession(EventKeyword keywords, EventVerbosityLevel verbosity);
+    EventPipeSession* OpenEventPipeSession(bool is64Bit, EventKeyword keywords, EventVerbosityLevel verbosity);
 
     // DUMP
     // PROFILE
