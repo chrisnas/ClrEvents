@@ -214,13 +214,14 @@ void ParseCommandLine(int argc, wchar_t* argv[], DWORD& pid, const wchar_t*& inp
 }
 
 
-// -pid 47376 -out d:\temp\diagnostics\record_2_exceptions.bin
-// -in d:\temp\diagnostics\record_2_exceptionsFailed.bin -out d:\temp\diagnostics\record_2_exceptions.bin
+// 32 bit:  -pid 118048 -out d:\temp\diagnostics\recording.bin
+// 64 bit:  -pid 125152 -out d:\temp\diagnostics\recording.bin
+// -in d:\temp\diagnostics\record_5_exceptionsWithMissingMessage.bin
 // -in d:\temp\diagnostics\record_exceptions_wcoutBroken.bin 
 int wmain(int argc, wchar_t* argv[])
 {
     // simulator pid
-    DWORD pid = 47376;  // 64 bit
+    DWORD pid = -1;
     const wchar_t* inputFilename;
     const wchar_t* outputFilename;
     ParseCommandLine(argc, argv, pid, inputFilename, outputFilename);
@@ -252,7 +253,14 @@ int wmain(int argc, wchar_t* argv[])
     bool is64Bit = true; // TODO: need to figure out the bitness of monitored application (using the Process::ProcessInfo command)
     
     // TODO: pass an IIpcRecorder
-    auto pSession = pClient->OpenEventPipeSession(is64Bit, EventKeyword::exception, EventVerbosityLevel::Error);
+    auto pSession = pClient->OpenEventPipeSession(
+        is64Bit, 
+            EventKeyword::gc |
+            EventKeyword::exception | 
+            EventKeyword::contention
+            ,
+        EventVerbosityLevel::Verbose  // required for AllocationTick
+        );
     if (pSession != nullptr)
     {
         DWORD tid = 0;

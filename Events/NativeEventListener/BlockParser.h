@@ -49,6 +49,7 @@ protected:
     bool ReadWord(uint16_t& word);
     bool ReadDWord(uint32_t& dword);
     bool ReadLong(uint64_t& ulong);
+    bool ReadDouble(double& d);
     bool ReadVarUInt32(uint32_t& val, DWORD& size);
     bool ReadVarUInt64(uint64_t& val, DWORD& size);
     bool ReadWString(std::wstring& wstring, DWORD& bytesRead);
@@ -118,6 +119,8 @@ protected:
 // event handlers
 private:
     bool OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef);
+    bool OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metadataDef);
+    bool OnContentionStop(uint64_t threadId, DWORD payloadSize, EventCacheMetadata& metadataDef);
 };
 
 

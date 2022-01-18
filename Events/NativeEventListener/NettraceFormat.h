@@ -36,7 +36,7 @@ enum class ObjectType : uint8_t
 };
 
 #pragma pack(1)
-struct ObjectHeader
+struct ObjectHeader 
 {
     NettraceTag TagTraceObject;         // 5
     NettraceTag TagTypeObjectForTrace;  // 5

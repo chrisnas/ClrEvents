@@ -53,7 +53,7 @@ bool DiagnosticsClient::GetProcessInfo(ProcessInfoRequest& request)
 }
 
 
-EventPipeSession* DiagnosticsClient::OpenEventPipeSession(bool is64Bit, EventKeyword keywords, EventVerbosityLevel verbosity)
+EventPipeSession* DiagnosticsClient::OpenEventPipeSession(bool is64Bit, uint64_t keywords, EventVerbosityLevel verbosity)
 {
     EventPipeStartRequest request;
     if (!request.Process(_pEndpoint, keywords, verbosity))

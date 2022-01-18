@@ -56,6 +56,7 @@ bool EventParserBase::OnParse()
             uint8_t tag;
             if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
             {
+                std::cout << "Missing end of block tag\n";
                 return false;
             }
 
@@ -256,6 +257,11 @@ bool BlockParser::ReadLong(uint64_t& ulong)
     return Read(&ulong, sizeof(uint64_t));
 }
 
+bool BlockParser::ReadDouble(double& d)
+{
+    return Read(&d, sizeof(double));
+}
+
 bool BlockParser::Read(LPVOID buffer, DWORD bufferSize)
 {
     if (!CheckBoundaries(bufferSize))
@@ -269,6 +275,9 @@ bool BlockParser::Read(LPVOID buffer, DWORD bufferSize)
 
 bool BlockParser::SkipBytes(uint32_t byteCount)
 {
+    if (byteCount == 0)
+        return true;
+
     if (!CheckBoundaries(byteCount))
     {
         // TODO: DumpBuffer()
@@ -283,6 +292,7 @@ bool BlockParser::SkipBytes(uint32_t byteCount)
 
 bool BlockParser::ReadVarUInt32(uint32_t& val, DWORD& size)
 {
+    val = 0;
     int shift = 0;
     byte b;
     do
@@ -306,6 +316,7 @@ bool BlockParser::ReadVarUInt32(uint32_t& val, DWORD& size)
 
 bool BlockParser::ReadVarUInt64(uint64_t& val, DWORD& size)
 {
+    val = 0;
     int shift = 0;
     byte b;
     do
@@ -337,6 +348,17 @@ bool BlockParser::ReadWString(std::wstring& wstring, DWORD& bytesRead)
         {
             return false;
         }
+
+        // TODO: protect against invalid UNICODE character (due to missing fields in ExceptionThrown event)
+        if (character > 256)
+        {
+            // rewind the character
+            _pos = _pos - sizeof(character);
+            
+            // this is only covering a missing string 
+            return (bytesRead == 0);
+        }
+
         bytesRead += sizeof(character);
 
         // Note that an empty string contains only that \0 character

@@ -20,7 +20,7 @@ public:
     // EVENTPIPE
     // Don't forget to call EventPipeSession::Stop() to send the Stop command 
     // and cancel the receiving of CLR events after EventPipeSession::Listen() is called
-    EventPipeSession* OpenEventPipeSession(bool is64Bit, EventKeyword keywords, EventVerbosityLevel verbosity);
+    EventPipeSession* OpenEventPipeSession(bool is64Bit, uint64_t keywords, EventVerbosityLevel verbosity);
 
     // DUMP
     // PROFILE

@@ -174,6 +174,16 @@ bool EventPipeSession::Stop()
 }
 
 
+void DumpObjectHeader(ObjectHeader& header)
+{
+    std::cout << "\nObjectHeader: \n";
+    std::cout << "   TagTraceObject         = " << (uint8_t)header.TagTraceObject << "\n";
+    std::cout << "   TagTypeObjectForTrace  = " << (uint8_t)header.TagTypeObjectForTrace << "\n";
+    std::cout << "   TagType                = " << (uint8_t)header.TagType << "\n";
+    std::cout << "   Version                = " << header.Version << "\n";
+    std::cout << "   MinReaderVersion       = " << header.MinReaderVersion << "\n";
+    std::cout << "   NameLength             = " << header.NameLength << "\n";
+}
 
 // look at FastSerialization implementation with a decompiler:
 //  .ReadObject() 
@@ -191,12 +201,17 @@ bool EventPipeSession::ReadNextObject()
 
     ObjectType ot = GetObjectType(header);
     if (ot == ObjectType::Unknown)
+    {
+        std::cout << "Invalid object header type:\n";
+        DumpObjectHeader(header);
         return false;
+    }
 
     // don't forget to check the end object tag
     uint8_t tag;
     if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
     {
+        std::cout << "Missing end of object tag: " << (uint8_t)tag << "\n";
         return false;
     }
 
@@ -542,6 +557,7 @@ bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
     while (ParseEventBlob(isCompressed, blobSize))
     {
         totalBlobSize += blobSize;
+        blobSize = 0;
 
         if (totalBlobSize >= remainingBlockSize - 1) // try to detect last blob
         {
@@ -908,6 +924,7 @@ bool EventPipeSession::ParseStackBlock(ObjectHeader& header)
     {
         stackId++;
         totalStacksSize += stackSize;
+        stackSize = 0;
 
         if (totalStacksSize >= remainingBlockSize - 1) // try to detect last stack
         {
@@ -915,6 +932,7 @@ bool EventPipeSession::ParseStackBlock(ObjectHeader& header)
             uint8_t tag;
             if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
             {
+                std::cout << "Missing end of block tag: " << (uint8_t)tag << "\n";
                 return false;
             }
 

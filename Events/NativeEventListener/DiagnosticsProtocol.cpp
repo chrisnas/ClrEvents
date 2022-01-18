@@ -246,7 +246,7 @@ EventPipeStartRequest::EventPipeStartRequest()
     SessionId = 0;
 }
 
-StartSessionMessage* CreateStartSessionMessage(EventKeyword keywords, EventVerbosityLevel verbosity)
+StartSessionMessage* CreateStartSessionMessage(uint64_t keywords, EventVerbosityLevel verbosity)
 {
     auto message = new StartSessionMessage();
     ::ZeroMemory(message, sizeof(message));
@@ -268,7 +268,7 @@ StartSessionMessage* CreateStartSessionMessage(EventKeyword keywords, EventVerbo
     return message;
 }
 
-bool EventPipeStartRequest::Process(IIpcEndpoint* pEndpoint, EventKeyword keywords, EventVerbosityLevel verbosity)
+bool EventPipeStartRequest::Process(IIpcEndpoint* pEndpoint, uint64_t keywords, EventVerbosityLevel verbosity)
 {
     //IpcMessage message = CreateStartMessage(providers, requestRundown, circularBufferMB);
     //IpcResponse ? response = IpcClient.SendMessageGetContinuation(endpoint, message);

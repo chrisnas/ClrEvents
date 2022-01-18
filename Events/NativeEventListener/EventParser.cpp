@@ -47,6 +47,22 @@ bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD&
 
     switch (metadataDef.EventId)
     {
+        case EventIDs::AllocationTick:
+            if (!OnAllocationTick(header.PayloadSize, metadataDef))
+            {
+                return false;
+            }
+            break;
+
+        // TODO: check in which version of the CLR, the ContentionStop_V1 is available
+        //       before that, it is needed to compute, per thread, the difference between Start and Stop 
+        case EventIDs::ContentionStop:
+            if (!OnContentionStop(header.ThreadId, header.PayloadSize, metadataDef))
+            {
+                return false;
+            }
+            break;
+
         case EventIDs::ExceptionThrown:
             if (!OnExceptionThrown(header.PayloadSize, metadataDef))
             {
@@ -65,6 +81,157 @@ bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD&
 
     return true;
 }
+
+
+// from https://docs.microsoft.com/en-us/dotnet/framework/performance/garbage-collection-etw-events#gcallocationtick_v3-event
+//  AllocationAmount    UInt32          The allocation size, in bytes.
+//                                      This value is accurate for allocations that are less than the length of a ULONG(4,294,967,295 bytes).
+//                                      If the allocation is greater, this field contains a truncated value. 
+//                                      Use AllocationAmount64 for very large allocations.
+//  AllocationKind      UInt32          0x0 - Small object allocation(allocation is in small object heap).
+//                                      0x1 - Large object allocation(allocation is in large object heap).
+//  ClrInstanceID       UInt16          Unique ID for the instance of CLR or CoreCLR.
+//  AllocationAmount64  UInt64          The allocation size, in bytes.This value is accurate for very large allocations.
+//  TypeId              Pointer         The address of the MethodTable.When there are several types of objects that were allocated during this event, 
+//                                      this is the address of the MethodTable that corresponds to the last object allocated (the object that caused the 100 KB threshold to be exceeded).
+//  TypeName            UnicodeString   The name of the type that was allocated.When there are several types of objects that were allocated during this event, 
+//                                      this is the type of the last object allocated (the object that caused the 100 KB threshold to be exceeded).
+//  HeapIndex           UInt32          The heap where the object was allocated.This value is 0 (zero)when running with workstation garbage collection.
+//  Address             Pointer         The address of the last allocated object.
+//
+bool EventParser::OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metadataDef)
+{
+    DWORD readBytesCount = 0;
+    DWORD size = 0;
+    std::cout << "\nAllocation Tick:\n";
+    
+    // get common fields
+    uint32_t dword = 0;
+    if (!ReadDWord(dword))
+    {
+        std::cout << "Error while reading allocation tick amount\n";
+        return false;
+    }
+    readBytesCount += sizeof(dword);
+    std::cout << "   Amount        = " << dword << " bytes\n";
+
+    if (!ReadDWord(dword))
+    {
+        std::cout << "Error while reading allocation tick kind\n";
+        return false;
+    }
+    readBytesCount += sizeof(dword);
+    std::cout << "   Kind          = " << ((dword == 1) ? "LOH" : "small") << " bytes\n";
+
+    uint16_t word = 0;
+    if (!ReadWord(word))
+    {
+        std::cout << "Error while reading allocation tick CLR instance ID\n";
+        return false;
+    }
+    readBytesCount += sizeof(word);
+    std::cout << "   CLR ID        = " << word << "\n";
+
+    uint64_t ulong = 0;
+    if (!ReadLong(ulong))
+    {
+        std::cout << "Error while reading allocation tick amount64\n";
+        return false;
+    }
+    readBytesCount += sizeof(ulong);
+    std::cout << "   Amount64      = " << ulong << " bytes\n";
+
+    // skip useless MT address
+    // TODO: handle 32/64 bit difference
+    if (!ReadLong(ulong))
+    {
+        std::cout << "Error while reading allocation tick MT address\n";
+        return false;
+    }
+    readBytesCount += sizeof(ulong);
+
+    std::wstring strBuffer;
+    strBuffer.reserve(128);
+    if (!ReadWString(strBuffer, size))
+    {
+        std::cout << "Error while reading allocation tick type name\n";
+        return false;
+    }
+    readBytesCount += size;
+    if (strBuffer.empty())
+        std::wcout << L"   Type          = ''\n";
+    else
+        std::wcout << L"   Type          = " << strBuffer.c_str() << L"\n";
+
+    if (!ReadDWord(dword))
+    {
+        std::cout << "Error while reading allocation tick heap index\n";
+        return false;
+    }
+    readBytesCount += sizeof(dword);
+    std::cout << "   Heap index    = " << dword << "\n";
+
+    // get additional fields if any
+    if (metadataDef.Version >= 3)
+    { 
+        // TODO: handle 32/64 bit difference
+        if (!ReadLong(ulong))
+        {
+            std::cout << "Error while reading allocation tick object address\n";
+            return false;
+        }
+        readBytesCount += sizeof(ulong);
+        std::cout << "   Object addr   = 0x" << std::hex << ulong << std::dec << "\n";
+    }
+
+    // skip the rest of the payload
+    return SkipBytes(payloadSize - readBytesCount);
+}
+
+// from https://docs.microsoft.com/en-us/dotnet/framework/performance/contention-etw-events
+//    + https://github.com/dotnet/runtime/blob/main/src/coreclr/vm/ClrEtwAll.man#L1720 for V1
+//  ContentionFlags win:UInt8   0 = Managed and 1 = Native
+//  ClrInstanceID   win:UInt16
+//  DurationNs      win:Double  duration of the contention in nanoseconds (only in V1)
+//
+bool EventParser::OnContentionStop(uint64_t threadId, DWORD payloadSize, EventCacheMetadata& metadataDef)
+{
+    DWORD readBytesCount = 0;
+    DWORD size = 0;
+    std::cout << "\nContention:\n";
+    std::cout << "   Thread ID  = " << threadId << "\n";
+
+    uint8_t flags = 0;
+    if (!ReadByte(flags))
+    {
+        std::cout << "Error while reading contention end flags ID\n";
+        return false;
+    }
+    readBytesCount += sizeof(flags);
+    std::cout << "   Lock type  = " << ((flags == 0) ? "Managed" : "Native") << "\n";
+
+    uint16_t word = 0;
+    if (!ReadWord(word))
+    {
+        std::cout << "Error while reading contention end CLR instance ID\n";
+        return false;
+    }
+    readBytesCount += sizeof(word);
+    std::cout << "   CLR ID     = " << word << "\n";
+
+    double d = 0;
+    if (!ReadDouble(d))
+    {
+        std::cout << "Error while reading contention end duration\n";
+        return false;
+    }
+    readBytesCount += sizeof(d);
+    std::cout << "   Duration   = " << d / 1000000 << " ms\n";
+
+    // skip the rest of the payload
+    return SkipBytes(payloadSize - readBytesCount);
+}
+
 
 // from https://docs.microsoft.com/en-us/dotnet/framework/performance/exception-thrown-v1-etw-event
 bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef)
@@ -86,7 +253,7 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
         return false;
     }
     readBytesCount += size;
-    if (size == 2)
+    if (strBuffer.empty())
         std::wcout << L"   type    = ''\n";
     else
         std::wcout << L"   type    = " << strBuffer.c_str() << L"\n";
@@ -100,7 +267,7 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
     readBytesCount += size;
     
     // handle empty string case
-    if (size == 2)
+    if (strBuffer.empty())
         std::wcout << L"   message = ''\n";
     else
         std::wcout << L"   message = " << strBuffer.c_str() << L"\n";

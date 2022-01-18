@@ -201,7 +201,7 @@ enum GCEventKeyword
 // https://docs.microsoft.com/en-us/dotnet/framework/performance/garbage-collection-etw-events
 
 // from https://docs.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace
-enum class EventKeyword : uint64_t
+enum EventKeyword : uint64_t
 {
     gc                              = 0x1,
     gchandle                        = 0x2,
@@ -278,7 +278,7 @@ class EventPipeStartRequest
 public:
     EventPipeStartRequest();
 
-    bool Process(IIpcEndpoint* pEndpoint, EventKeyword keywords, EventVerbosityLevel verbosity);
+    bool Process(IIpcEndpoint* pEndpoint, uint64_t keywords, EventVerbosityLevel verbosity);
 
 public:
     DWORD Error;
