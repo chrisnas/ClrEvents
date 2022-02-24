@@ -4,7 +4,7 @@
 #include "DiagnosticsProtocol.h"
 
 // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-// 
+//
 // The header is formed by:
 //  "Nettrace" in ASCII (no final \0)
 //  20 as uint32_t (length of following string)
@@ -42,7 +42,7 @@ bool CheckNettraceHeader(NettraceHeader& header)
 
 
 // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-// 
+//
 // The TraceObject header is formed by an ObjectHeader followed by:
 //  "Trace" in ASCII (no final \0)
 
@@ -93,8 +93,8 @@ const uint32_t BLOCK_SIZE = 4096;
 
 EventPipeSession::EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64_t sessionId)
     :
-    _metadataParser(_metadata), 
-    _eventParser(_metadata)
+    _metadataParser(is64Bit, _metadata),
+    _eventParser(is64Bit, _metadata)
 {
     Is64Bit = is64Bit;
     _pEndpoint = pEndpoint;
@@ -136,7 +136,7 @@ bool EventPipeSession::Listen()
     {
         std::cout << "------------------------------------------------\n";
     }
-    
+
     // ??? the response to the StopTracing command could be received here: do we need to send it using another endpoint?
 
     return _stopRequested;
@@ -186,7 +186,7 @@ void DumpObjectHeader(ObjectHeader& header)
 }
 
 // look at FastSerialization implementation with a decompiler:
-//  .ReadObject() 
+//  .ReadObject()
 //  .ReadObjectDefinition()
 bool EventPipeSession::ReadNextObject()
 {
@@ -253,7 +253,7 @@ ObjectType EventPipeSession::GetObjectType(ObjectHeader& header)
         uint8_t buffer[13];
         if (!Read(buffer, 13))
             return ObjectType::Unknown;
-        
+
         if (IsSameAsString(buffer, 13, MetadataBlockName))
             return ObjectType::MetadataBlock;
 
@@ -536,7 +536,7 @@ bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
     // skip any optional content if any
     if (ebHeader.HeaderSize > sizeof(EventBlockHeader))
     {
-        uint8_t optionalSize = ebHeader.HeaderSize - sizeof(EventBlockHeader);
+        size_t optionalSize = ebHeader.HeaderSize - sizeof(EventBlockHeader);
         uint8_t* pBuffer = new uint8_t[optionalSize];
         if (!Read(pBuffer, optionalSize))
         {
@@ -548,7 +548,7 @@ bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
 
     // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
     // the rest of the block is a list of Event blobs
-    // 
+    //
     DWORD blobSize = 0;
     DWORD totalBlobSize = 0;
     DWORD remainingBlockSize = blockSize - ebHeader.HeaderSize;
@@ -643,7 +643,7 @@ bool EventPipeSession::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& 
 
     // string: exception type
     // string: exception message
-    // Note: followed by "instruction pointer" 
+    // Note: followed by "instruction pointer"
     //          could be 32 bit or 64 bit: how to figure out the bitness of the monitored application?
     std::wstring strBuffer;
     strBuffer.reserve(128);
@@ -724,7 +724,7 @@ bool EventPipeSession::ParseMetadataBlock(ObjectHeader& header)
 
     //// from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
     //// the rest of the block is a list of Event blobs
-    //// 
+    ////
     //DWORD blobSize = 0;
     //DWORD totalBlobSize = 0;
     //DWORD remainingBlockSize = blockSize - ebHeader.HeaderSize;
@@ -789,16 +789,16 @@ bool EventPipeSession::ParseMetadataBlob(bool isCompressed, DWORD& blobSize)
 
     // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
     // A metadata blob is supposed to contain:
-    //  
+    //
     //  int MetaDataId;      // The Meta-Data ID that is being defined.
     //  string ProviderName; // The 2 byte Unicode, null terminated string representing the Name of the Provider (e.g. EventSource)
-    //  int EventId;         // A small number that uniquely represents this Event within this provider.  
+    //  int EventId;         // A small number that uniquely represents this Event within this provider.
     //  string EventName;    // The 2 byte Unicode, null terminated string representing the Name of the Event
     //  long Keywords;       // 64 bit set of groups (keywords) that this event belongs to.
     //  int Version          // The version number for this event.
     //  int Level;           // The verbosity (5 is verbose, 1 is only critical) for the event.
     //
-    
+
     uint32_t metadataId;
     if (!ReadDWord(metadataId))
     {
@@ -810,7 +810,7 @@ bool EventPipeSession::ParseMetadataBlob(bool isCompressed, DWORD& blobSize)
 
     auto& metadataDef = _metadata[metadataId];
     metadataDef.MetadataId = metadataId;
-    
+
     // look for the provider name
     metadataDef.ProviderName.reserve(48);  // no provider name longer than 32+ characters
     if (!ReadWString(metadataDef.ProviderName, size))
@@ -909,7 +909,7 @@ bool EventPipeSession::ParseStackBlock(ObjectHeader& header)
 
     // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
     //
-    // The payload contains callstacks as a sequence of: 
+    // The payload contains callstacks as a sequence of:
     //   uint32_t bytesCount
     //   list of addresses (up to bytesCount)
     // the id of each callstack is computed based on the stackHeader.FirstId

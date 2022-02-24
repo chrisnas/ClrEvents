@@ -4,6 +4,16 @@
 #include "BlockParser.h"
 
 
+EventParser::EventParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
+    :
+    EventParserBase(is64Bit, metadata)
+{
+    // Size of the ExceptionThrown payload AFTER the Message field
+    // see OnExceptionThrown for more details
+    _exceptionRemainingPayloadSize = (is64Bit ? 8 : 4) + 4 + 2 + 2;
+}
+
+
 // look at:
 //  EventpipeEventBlock.ReadBlockContent()
 bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD& blobSize)
@@ -55,7 +65,7 @@ bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD&
             break;
 
         // TODO: check in which version of the CLR, the ContentionStop_V1 is available
-        //       before that, it is needed to compute, per thread, the difference between Start and Stop 
+        //       before that, it is needed to compute, per thread, the difference between Start and Stop
         case EventIDs::ContentionStop:
             if (!OnContentionStop(header.ThreadId, header.PayloadSize, metadataDef))
             {
@@ -86,15 +96,15 @@ bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD&
 // from https://docs.microsoft.com/en-us/dotnet/framework/performance/garbage-collection-etw-events#gcallocationtick_v3-event
 //  AllocationAmount    UInt32          The allocation size, in bytes.
 //                                      This value is accurate for allocations that are less than the length of a ULONG(4,294,967,295 bytes).
-//                                      If the allocation is greater, this field contains a truncated value. 
+//                                      If the allocation is greater, this field contains a truncated value.
 //                                      Use AllocationAmount64 for very large allocations.
 //  AllocationKind      UInt32          0x0 - Small object allocation(allocation is in small object heap).
 //                                      0x1 - Large object allocation(allocation is in large object heap).
 //  ClrInstanceID       UInt16          Unique ID for the instance of CLR or CoreCLR.
 //  AllocationAmount64  UInt64          The allocation size, in bytes.This value is accurate for very large allocations.
-//  TypeId              Pointer         The address of the MethodTable.When there are several types of objects that were allocated during this event, 
+//  TypeId              Pointer         The address of the MethodTable.When there are several types of objects that were allocated during this event,
 //                                      this is the address of the MethodTable that corresponds to the last object allocated (the object that caused the 100 KB threshold to be exceeded).
-//  TypeName            UnicodeString   The name of the type that was allocated.When there are several types of objects that were allocated during this event, 
+//  TypeName            UnicodeString   The name of the type that was allocated.When there are several types of objects that were allocated during this event,
 //                                      this is the type of the last object allocated (the object that caused the 100 KB threshold to be exceeded).
 //  HeapIndex           UInt32          The heap where the object was allocated.This value is 0 (zero)when running with workstation garbage collection.
 //  Address             Pointer         The address of the last allocated object.
@@ -104,7 +114,7 @@ bool EventParser::OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metada
     DWORD readBytesCount = 0;
     DWORD size = 0;
     std::cout << "\nAllocation Tick:\n";
-    
+
     // get common fields
     uint32_t dword = 0;
     if (!ReadDWord(dword))
@@ -173,7 +183,7 @@ bool EventParser::OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metada
 
     // get additional fields if any
     if (metadataDef.Version >= 3)
-    { 
+    {
         // TODO: handle 32/64 bit difference
         if (!ReadLong(ulong))
         {
@@ -234,6 +244,17 @@ bool EventParser::OnContentionStop(uint64_t threadId, DWORD payloadSize, EventCa
 
 
 // from https://docs.microsoft.com/en-us/dotnet/framework/performance/exception-thrown-v1-etw-event
+//
+// EIPCodeThrow     win:Pointer Instruction pointer where exception occurred.
+// ExceptionHR      win:UInt32  Exception HRESULT.
+// ExceptionFlags   win:UInt16
+//      0x01: HasInnerException (see CLR ETW Events in the Visual Basic documentation).
+//      0x02: IsNestedException.
+//      0x04: IsRethrownException.
+//      0x08: IsCorruptedStateException (indicates that the process state is corrupt; see Handling Corrupted State Exceptions).
+//      0x10: IsCLSCompliant (an exception that derives from Exception is CLS-compliant; otherwise, it is not CLS-compliant).
+// ClrInstanceID	win:UInt16	Unique ID for the instance of CLR or CoreCLR.
+//
 bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef)
 {
     DWORD readBytesCount = 0;
@@ -241,7 +262,7 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
 
     // string: exception type
     // string: exception message
-    // Note: followed by "instruction pointer" 
+    // Note: followed by "instruction pointer"
     //          could be 32 bit or 64 bit: how to figure out the bitness of the monitored application?
     std::wstring strBuffer;
     strBuffer.reserve(128);
@@ -259,18 +280,29 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
         std::wcout << L"   type    = " << strBuffer.c_str() << L"\n";
 
     strBuffer.clear();
-    if (!ReadWString(strBuffer, size))
+    // In case of "empty" message, it might not be even visible as "\0" before .NET Core 6 (and after, will be "NULL")
+    // so it is needed to check if the remaining payload contains such a string
+    if ((payloadSize - readBytesCount) == _exceptionRemainingPayloadSize)
     {
-        std::cout << "Error while reading exception thrown type name\n";
-        return false;
-    }
-    readBytesCount += size;
-    
-    // handle empty string case
-    if (strBuffer.empty())
         std::wcout << L"   message = ''\n";
+    }
     else
-        std::wcout << L"   message = " << strBuffer.c_str() << L"\n";
+    {
+        if (!ReadWString(strBuffer, size))
+        {
+            std::cout << "Error while reading exception thrown message text\n";
+            return false;
+        }
+        readBytesCount += size;
+
+        // handle empty string case (check for "NULL" in case of .NET 6+)
+        if (strBuffer.empty() || (wcsstr(strBuffer.c_str(), L"NULL") == 0))
+            std::wcout << L"   message = ''\n";
+        else
+        {
+            std::wcout << L"   message = " << strBuffer.c_str() << L"\n";
+        }
+    }
 
     // skip the rest of the payload
     return SkipBytes(payloadSize - readBytesCount);
@@ -281,6 +313,7 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
 void DumpBlobHeader(EventBlobHeader& header)
 {
     std::cout << "\nblob header:\n";
+    std::cout << "   IsSorted          = " << header.IsSorted << "\n";
     std::cout << "   PayloadSize       = " << header.PayloadSize << "\n";
     std::cout << "   MetadataId        = " << header.MetadataId << "\n";
     std::cout << "   SequenceNumber    = " << header.SequenceNumber << "\n";

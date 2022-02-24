@@ -37,7 +37,7 @@
 //
 //    // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
 //    // the rest of the block is a list of Event blobs
-//    // 
+//    //
 //    DWORD blobSize = 0;
 //    DWORD totalBlobSize = 0;
 //    DWORD remainingBlockSize = _blockSize - ebHeader.HeaderSize;
@@ -78,6 +78,12 @@ void DumpMetadataDefinition(EventCacheMetadata metadataDef)
     std::cout << "   Level   : " << metadataDef.Level << "\n";
 }
 
+MetadataParser::MetadataParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
+    :
+    EventParserBase(is64Bit, metadata)
+{
+}
+
 bool MetadataParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD& blobSize)
 {
     if (isCompressed)
@@ -98,10 +104,10 @@ bool MetadataParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWO
 
     // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
     // A metadata blob is supposed to contain:
-    //  
+    //
     //  int MetaDataId;      // The Meta-Data ID that is being defined.
     //  string ProviderName; // The 2 byte Unicode, null terminated string representing the Name of the Provider (e.g. EventSource)
-    //  int EventId;         // A small number that uniquely represents this Event within this provider.  
+    //  int EventId;         // A small number that uniquely represents this Event within this provider.
     //  string EventName;    // The 2 byte Unicode, null terminated string representing the Name of the Event
     //  long Keywords;       // 64 bit set of groups (keywords) that this event belongs to.
     //  int Version          // The version number for this event.

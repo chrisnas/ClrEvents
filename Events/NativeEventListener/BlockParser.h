@@ -10,13 +10,13 @@
 class EventCacheMetadata
 {
 public:
-    uint32_t MetadataId;
+    uint32_t     MetadataId;
     std::wstring ProviderName;
-    uint32_t EventId;
+    uint32_t     EventId;
     std::wstring EventName; // could be empty
-    uint64_t Keywords;
-    uint32_t Version;
-    uint32_t Level;
+    uint64_t     Keywords;
+    uint32_t     Version;
+    uint32_t     Level;
 };
 
 void DumpMetadataDefinition(EventCacheMetadata metadataDef);
@@ -31,7 +31,6 @@ enum EventIDs : uint32_t
     ContentionStart = 81,
     ContentionStop = 91,
 };
-
 
 
 class BlockParser
@@ -71,7 +70,7 @@ private:
 class EventParserBase : public BlockParser
 {
 public:
-    EventParserBase(std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
+    EventParserBase(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
 
 protected:
     std::unordered_map<uint32_t, EventCacheMetadata>& _metadata;
@@ -85,14 +84,20 @@ protected:
 protected:
     bool ReadCompressedHeader(EventBlobHeader& header, DWORD& size);
     bool ReadUncompressedHeader(EventBlobHeader& header, DWORD& size);
+
+// shared fields
+protected:
+    bool _is64Bit;
 };
 
 
 // Available block parsers
+//
+
 class MetadataParser : public EventParserBase
 {
 public:
-    MetadataParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata) : EventParserBase(metadata) {}
+    MetadataParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
 
 protected:
     virtual bool OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD& blobSize);
@@ -107,7 +112,7 @@ class EventParser : public EventParserBase
 {
 // TODO: probably pass a IEventListener interface that contains OnException, OnAllocationTick,...
 public:
-    EventParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata) : EventParserBase(metadata) {}
+    EventParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
 
 protected:
     virtual bool OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD& blobSize);
@@ -121,6 +126,11 @@ private:
     bool OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef);
     bool OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metadataDef);
     bool OnContentionStop(uint64_t threadId, DWORD payloadSize, EventCacheMetadata& metadataDef);
+
+private:
+    // Size of the ExceptionThrown payload AFTER the Message field
+    // see OnExceptionThrown for more details
+    uint16_t _exceptionRemainingPayloadSize;
 };
 
 

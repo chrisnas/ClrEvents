@@ -3,10 +3,11 @@
 #include "BlockParser.h"
 
 
-EventParserBase::EventParserBase(std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
-    : _metadata(metadata)
+EventParserBase::EventParserBase(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
+    :
+    _is64Bit{is64Bit},
+    _metadata(metadata)
 {
-
 }
 
 
@@ -36,12 +37,12 @@ bool EventParserBase::OnParse()
 
     // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
     // the rest of the block is a list of Event blobs
-    // 
+    //
     DWORD blobSize = 0;
     DWORD totalBlobSize = 0;
     DWORD remainingBlockSize = _blockSize - ebHeader.HeaderSize;
     bool isCompressed = ((ebHeader.Flags & 1) == 1);
-    
+
     // Note: in order to gain space, some fields of the header could be "inherited"
     // from the header of the previous blob --> need to pass it from blob to blob
     EventBlobHeader header = {};
@@ -112,6 +113,7 @@ bool EventParserBase::ReadCompressedHeader(EventBlobHeader& header, DWORD& size)
         return false;
     }
     size += sizeof(flags);
+    header.IsSorted = (flags & 64) == 64;
 
     if ((flags & CompressedHeaderFlags::MetadataId) != 0)
     {
@@ -354,8 +356,8 @@ bool BlockParser::ReadWString(std::wstring& wstring, DWORD& bytesRead)
         {
             // rewind the character
             _pos = _pos - sizeof(character);
-            
-            // this is only covering a missing string 
+
+            // this is only covering a missing string
             return (bytesRead == 0);
         }
 
@@ -377,12 +379,12 @@ bool BlockParser::ReadWString(std::wstring& wstring, DWORD& bytesRead)
 //   _blockSize = 5
 //   bufferSize = 4
 //
-//                0   1   2   3   4 
-//                |   |   |   |   | 
-//                V   V   V   V   V 
+//                0   1   2   3   4
+//                |   |   |   |   |
+//                V   V   V   V   V
 //              |   |   |   |   |   |
 //  _pos              1
-//  readable          o   o   o   o 
+//  readable          o   o   o   o
 //   |--> _blockSize - _pos = 4
 //  so would return true
 //
