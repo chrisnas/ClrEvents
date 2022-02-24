@@ -27,7 +27,7 @@ bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD&
     }
     else
     {
-        if (!ReadCompressedHeader(header, blobSize))
+        if (!ReadUncompressedHeader(header, blobSize))
         {
             return false;
         }
