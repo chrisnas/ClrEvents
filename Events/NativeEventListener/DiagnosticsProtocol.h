@@ -19,7 +19,7 @@
 //  - encode numbers little - endian
 //  - account for the size of the payload in the size value, i.e., IpcHeader.size == sizeof(IpcHeader) + PayloadStruct.GetSize()
 // size = 14 + 2 + 1 + 1 + 2 = 20 bytes
-// The reserved field is reserved for future use.It is unused in DOTNET_IPC_V1and must be 0x0000.
+// The reserved field is reserved for future use. It is unused in DOTNET_IPC_V1 and must be 0x0000.
 
 // .NET 5: from diagnosticsprotocol.h
 enum class IpcMagicVersion : uint8_t
@@ -64,7 +64,7 @@ struct IpcHeader
     uint16_t Size;       // The size of the incoming packet, size = header + payload size
     uint8_t  CommandSet; // The scope of the Command.
     uint8_t  CommandId;  // The command being sent
-    uint16_t Reserved;   // reserved for future use
+    uint16_t Reserved;   // reserved for future use and must be 0
 };
 
 const MagicVersion DotnetIpcMagic_V1 = { "DOTNET_IPC_V1" };
@@ -116,7 +116,7 @@ const IpcHeader GenericErrorHeader =
 
 // PROCESS commands (available in .NET 5+)
 //
-const IpcHeader ProcessInfoMessage = 
+const IpcHeader ProcessInfoMessage =
 {
     { DotnetIpcMagic_V1 },
     (uint16_t)sizeof(IpcHeader),
@@ -151,7 +151,7 @@ private:
 };
 
 
-// EVENTPIPE commands 
+// EVENTPIPE commands
 //
 enum class EventPipeCommandId : uint8_t
 {
@@ -159,7 +159,7 @@ enum class EventPipeCommandId : uint8_t
     StopTracing = 0x01,     // stop a given session
     CollectTracing = 0x02,  // create/start a given session
     CollectTracing2 = 0x03, // create/start a given session with/without rundown
-}; 
+};
 
 
 const uint8_t DotnetProviderMagicLength = 32;
@@ -258,10 +258,10 @@ struct StartSessionMessage : public IpcHeader
 {
     uint32_t CircularBufferMB;  // 16 MB
     uint32_t Format;            // 1 for NetTrace format
-    uint8_t RequestRundown;     // 0 because don't want rundown 
+    uint8_t RequestRundown;     // 0 because don't want rundown
 
     // array of provider configuration
-    uint32_t ProviderCount;     // 1 only Microsoft-Windows-DotNETRuntime
+    uint32_t ProviderCount;     // 1 only: Microsoft-Windows-DotNETRuntime
     uint64_t Keywords;          // from EventKeyword
     uint32_t Verbosity;         // from EventPipeEventLevel
     uint32_t ProviderStringLen; // number of UTF16 characters = 32 (including last \0)
@@ -286,12 +286,22 @@ public:
 };
 
 
+#pragma pack(1)
 struct StopSessionMessage : public IpcHeader
 {
     uint64_t SessionId;
 };
 
+class EventPipeStopRequest
+{
+public:
+    EventPipeStopRequest();
 
+    bool Process(IIpcEndpoint* pEndpoint, uint64_t sessionId);
+
+public:
+    DWORD Error;
+};
 
 // helper functions
 //

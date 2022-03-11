@@ -78,30 +78,15 @@ bool CheckTraceObjectHeader(TraceObjectHeader& header)
 
 const uint32_t BLOCK_SIZE = 4096;
 
-//EventPipeSession::EventPipeSession()
-//{
-//    Error = 0;
-//
-//    _position = 0;
-//    _stopRequested = false;
-//    _blobHeader = {};
-//    _blockSize = BLOCK_SIZE;
-//    _pBlock = new uint8_t[_blockSize];
-//    ::ZeroMemory(_pBlock, _blockSize);
-//}
-
-
 EventPipeSession::EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64_t sessionId)
     :
     _metadataParser(is64Bit, _metadata),
-    _eventParser(is64Bit, _metadata)
+    _eventParser(is64Bit, _metadata),
+    Is64Bit(is64Bit),
+    _pEndpoint(pEndpoint),
+    SessionId(sessionId)
 {
-    Is64Bit = is64Bit;
-    _pEndpoint = pEndpoint;
-    _sessionId = sessionId;
-
     Error = 0;
-
     _position = 0;
     _stopRequested = false;
     _blobHeader = {};
@@ -143,33 +128,11 @@ bool EventPipeSession::Listen()
 }
 
 
-StopSessionMessage* CreateStopMessage(uint64_t sessionId)
-{
-    auto message = new StopSessionMessage();
-    ::ZeroMemory(message, sizeof(message));
-    memcpy(message->Magic, &DotnetIpcMagic_V1, sizeof(message->Magic));
-    message->Size = sizeof(StartSessionMessage);
-    message->CommandSet = (uint8_t)DiagnosticServerCommandSet::EventPipe;
-    message->CommandId = (uint8_t)EventPipeCommandId::CollectTracing2;
-    message->Reserved = 0;
-    message->SessionId = sessionId;
-
-    return message;
-}
-
 bool EventPipeSession::Stop()
 {
     _stopRequested = true;
 
-    auto message = CreateStopMessage(_sessionId);
-    DWORD writtenBytes;
-    if (!_pEndpoint->Write(&message, sizeof(message), &writtenBytes))
-    {
-        auto error = ::GetLastError();
-        std::cout << "Error while sending EventPipe Stop message to the CLR: 0x" << std::hex << error << std::dec << "\n";
-        return false;
-    }
-
+    // it is expected that a StopSession command will be sent for the current session id
     return true;
 }
 

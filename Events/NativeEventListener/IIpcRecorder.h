@@ -1,6 +1,5 @@
 #pragma once
 #include <windows.h>
-//#include <stdint.h>
 
 class IIpcRecorder
 {
@@ -10,7 +9,3 @@ public:
 
     virtual ~IIpcRecorder() = default;
 };
-
-
-
-

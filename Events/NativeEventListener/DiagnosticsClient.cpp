@@ -62,3 +62,9 @@ EventPipeSession* DiagnosticsClient::OpenEventPipeSession(bool is64Bit, uint64_t
     auto session = new EventPipeSession(is64Bit, _pEndpoint, request.SessionId);
     return session;
 }
+
+bool DiagnosticsClient::StopEventPipeSession(uint64_t sessionId)
+{
+    EventPipeStopRequest request;
+    return request.Process(_pEndpoint, sessionId);
+}

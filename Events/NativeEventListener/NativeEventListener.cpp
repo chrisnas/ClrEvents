@@ -125,14 +125,14 @@ int BasicConnection(DWORD pid)
     // connect to the named pipe
     HANDLE hPipe;
     hPipe = ::CreateFile(
-        pszPipeName,    // pipe name 
-        GENERIC_READ |  // read and write access 
+        pszPipeName,    // pipe name
+        GENERIC_READ |  // read and write access
         GENERIC_WRITE,
-        0,              // no sharing 
+        0,              // no sharing
         NULL,           // default security attributes
-        OPEN_EXISTING,  // opens existing pipe 
-        0,              // default attributes 
-        NULL);          // no template file 
+        OPEN_EXISTING,  // opens existing pipe
+        0,              // default attributes
+        NULL);          // no template file
 
     if (hPipe == INVALID_HANDLE_VALUE)
     {
@@ -140,16 +140,8 @@ int BasicConnection(DWORD pid)
         return -2;
     }
 
-    // GetLastError() could be ERROR_PIPE_BUSY: should retry in that case
-
-    // details of the named pipe
-    DumpNamedPipeInfo(hPipe, pszPipeName);
-
-    //// send NOP to CLR
-    //if (!CheckNop(hPipe))
-    //{
-    //    return -4;
-    //}
+    //// details of the named pipe
+    //DumpNamedPipeInfo(hPipe, pszPipeName);
 
     // send ProcessInfo command to CLR
     if (!CheckProcessInfo(hPipe))
@@ -173,9 +165,9 @@ DWORD WINAPI ListenToEvents(void* pParam)
     return 0;
 }
 
-// -p : pid
-// -i : input filename
-// -o : output filename
+// -pid : pid
+// -i   : input filename
+// -o   : output filename
 void ParseCommandLine(int argc, wchar_t* argv[], DWORD& pid, const wchar_t*& inputFilename, const wchar_t*& outputFilename)
 {
     pid = -1;
@@ -217,7 +209,7 @@ void ParseCommandLine(int argc, wchar_t* argv[], DWORD& pid, const wchar_t*& inp
 // 32 bit:  -pid 118048 -out d:\temp\diagnostics\recording.bin
 // 64 bit:  -pid 125152 -out d:\temp\diagnostics\recording.bin
 // -in d:\temp\diagnostics\record_5_exceptionsWithMissingMessage.bin
-// -in d:\temp\diagnostics\record_exceptions_wcoutBroken.bin 
+// -in d:\temp\diagnostics\record_exceptions_wcoutBroken.bin
 int wmain(int argc, wchar_t* argv[])
 {
     // simulator pid
@@ -231,19 +223,30 @@ int wmain(int argc, wchar_t* argv[])
         return -1;
     }
 
+    //// direct connection and ProcessInfo command handling
     //BasicConnection(pid);
+    //return 0;
 
     DiagnosticsClient* pClient = nullptr;
+    DiagnosticsClient* pStopClient = nullptr;
     if (pid != -1)
+    {
         pClient = DiagnosticsClient::Create(pid, outputFilename);
+        pStopClient = DiagnosticsClient::Create(pid, nullptr);
+    }
     else
     if (inputFilename != nullptr)
+    {
         pClient = DiagnosticsClient::Create(inputFilename, outputFilename);
+
+        // no need to stop a live session when replay a recorded session
+        pStopClient = nullptr;
+    }
 
     if (pClient == nullptr)
         return -1;
 
-    //// get process information
+    //// get process information with DiagnosticsClient
     //ProcessInfoRequest request;
     //pClient->GetProcessInfo(request);
     //DumpProcessInfo(request);
@@ -251,12 +254,12 @@ int wmain(int argc, wchar_t* argv[])
 
     // listen to CLR events
     bool is64Bit = true; // TODO: need to figure out the bitness of monitored application (using the Process::ProcessInfo command)
-    
+
     // TODO: pass an IIpcRecorder
     auto pSession = pClient->OpenEventPipeSession(
-        is64Bit, 
+        is64Bit,
             EventKeyword::gc |
-            EventKeyword::exception | 
+            EventKeyword::exception |
             EventKeyword::contention
             ,
         EventVerbosityLevel::Verbose  // required for AllocationTick
@@ -272,6 +275,11 @@ int wmain(int argc, wchar_t* argv[])
 
         std::cout << "Stopping session\n\n";
         pSession->Stop();
+
+        // it is neeeded to use a different ipc connection to stop the pSession
+        if (pStopClient != nullptr)
+            pStopClient->StopEventPipeSession(pSession->SessionId);
+
         std::cout << "Session stopped\n\n";
 
         // test if it works

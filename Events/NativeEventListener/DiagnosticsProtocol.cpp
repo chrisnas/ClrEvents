@@ -185,11 +185,11 @@ void PointToString(uint8_t* buffer, uint32_t& index, wchar_t*& string)
     // strings are stored as:
     //    - characters count as uint32_t
     //    - array of UTF16 characters followed by "\0"
-    // Note that the last L"\0" IS COUNTED 
+    // Note that the last L"\0" IS COUNTED
     uint32_t count;
     memcpy(&count, &buffer[index], sizeof(count));
 
-    // skip characters count 
+    // skip characters count
     index += sizeof(count);
 
     // empty string case
@@ -212,14 +212,14 @@ bool ProcessInfoRequest::ParseResponse(DWORD payloadSize)
     // payload layout:
     // ---------------------------
     // uint64_t pid
-    // GUID guid 
+    // GUID guid
     // string command line
     // string operating system
     // string architecture
     // ---------------------------
     //
     uint32_t index = 0;
-    
+
     memcpy(&Pid, &_buffer[index], sizeof(Pid));
     index += sizeof(Pid);
     if (payloadSize < index) return false;
@@ -270,10 +270,6 @@ StartSessionMessage* CreateStartSessionMessage(uint64_t keywords, EventVerbosity
 
 bool EventPipeStartRequest::Process(IIpcEndpoint* pEndpoint, uint64_t keywords, EventVerbosityLevel verbosity)
 {
-    //IpcMessage message = CreateStartMessage(providers, requestRundown, circularBufferMB);
-    //IpcResponse ? response = IpcClient.SendMessageGetContinuation(endpoint, message);
-    //return CreateSessionFromResponse(endpoint, ref response, "Listen");
-
     // send an StartSessionMessage and parse the response
     StartSessionMessage* pMessage = CreateStartSessionMessage(keywords, verbosity);
 
@@ -284,8 +280,10 @@ bool EventPipeStartRequest::Process(IIpcEndpoint* pEndpoint, uint64_t keywords, 
     {
         Error = ::GetLastError();
         std::cout << "Error while sending EventPipe collect message to the CLR: 0x" << std::hex << Error << std::dec << "\n";
+        delete pMessage;
         return false;
     }
+    delete pMessage;
 
     // analyze the response
     IpcHeader response = {};
@@ -321,4 +319,73 @@ bool EventPipeStartRequest::Process(IIpcEndpoint* pEndpoint, uint64_t keywords, 
     }
 
     return true;
+}
+
+
+EventPipeStopRequest::EventPipeStopRequest()
+{
+    Error = 0;
+}
+
+StopSessionMessage* CreateStopMessage(uint64_t sessionId)
+{
+    StopSessionMessage* message = new StopSessionMessage();
+    ::ZeroMemory(message, sizeof(message));
+    memcpy(message->Magic, &DotnetIpcMagic_V1, sizeof(message->Magic));
+    message->Size = sizeof(StopSessionMessage);
+    message->CommandSet = (uint8_t)DiagnosticServerCommandSet::EventPipe;
+    message->CommandId = (uint8_t)EventPipeCommandId::StopTracing;
+    message->Reserved = 0;
+    message->SessionId = sessionId;
+
+    return message;
+}
+
+bool EventPipeStopRequest::Process(IIpcEndpoint* pEndpoint, uint64_t sessionId)
+{
+    StopSessionMessage* pMessage = CreateStopMessage(sessionId);
+    DWORD writtenBytes;
+    if (!pEndpoint->Write(pMessage, pMessage->Size, &writtenBytes))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while sending EventPipe Stop message to the CLR: 0x" << std::hex << Error << std::dec << "\n";
+        delete pMessage;
+        return false;
+    }
+    delete pMessage;
+
+    // check the response
+    IpcHeader response = {};
+    DWORD bytesReadCount = 0;
+    if (!pEndpoint->Read(&response, sizeof(response), &bytesReadCount))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while reading EventPipe Stop message response from the CLR: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+
+    if (response.CommandId == (uint8_t)DiagnosticServerResponseId::OK)
+    {
+        // TODO: the payload should be the same session ID
+        return true;
+    }
+
+    // get the error if any
+    uint16_t payloadSize = response.Size - sizeof(response);
+    if (payloadSize < sizeof(uint32_t))
+    {
+        Error = 0;
+        std::cout << "Unexpected EventPipe stop reponse payload size: " << payloadSize << "\n";
+        return false;
+    }
+    uint32_t error = 0;
+    if (!pEndpoint->ReadDWord(error))
+    {
+        Error = ::GetLastError();
+        std::cout << "Error while getting Session ID from EventPipe stop reponse payload: 0x" << std::hex << Error << std::dec << "\n";
+        return false;
+    }
+
+    std::cout << "Error while getting Session ID from EventPipe stop reponse payload: 0x" << std::hex << error << std::dec << "\n";
+    return false;
 }

@@ -4,6 +4,10 @@
 #include "EventPipeSession.h"
 #include "DiagnosticsProtocol.h"
 
+// This class is used to send and process ONE request: create one instance per command.
+// For example, listening to CLR events requires one instance to start the session
+// and one instance to stop it.
+// Don't reuse an instance after a command has been set
 class DiagnosticsClient
 {
 public:
@@ -13,19 +17,20 @@ public:
 
     // Expose the available commands from the protocol
     //
- 
-    // PROCESS 
+
+    // PROCESS
     bool GetProcessInfo(ProcessInfoRequest& request);
 
     // EVENTPIPE
-    // Don't forget to call EventPipeSession::Stop() to send the Stop command 
-    // and cancel the receiving of CLR events after EventPipeSession::Listen() is called
+    // The Stop command to cancel the receiving of CLR events (hence returning from EventPipeSession::Listen())
+    //
     EventPipeSession* OpenEventPipeSession(bool is64Bit, uint64_t keywords, EventVerbosityLevel verbosity);
+    bool StopEventPipeSession(uint64_t sessionId);
 
     // DUMP
     // PROFILE
     // COUNTER
-    // 
+    //
 private:
     DiagnosticsClient(int pid, IIpcEndpoint* pEndpoint);
 

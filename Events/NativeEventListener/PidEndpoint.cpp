@@ -16,7 +16,7 @@ PidEndpoint* PidEndpoint::Create(int pid, IIpcRecorder* pRecorder)
         return nullptr;
 
 // TODO: implement the Linux version based on Domain Socket instead of named pipe
-    
+
     return CreateForWindows(pid, pRecorder);
 
 }
@@ -25,10 +25,9 @@ PidEndpoint* PidEndpoint::CreateForWindows(int pid, IIpcRecorder* pRecorder)
 {
     PidEndpoint* pEndpoint = new PidEndpoint(pRecorder);
 
-    // https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew
-    wchar_t pszPipeName[256];
-
     // build the pipe name as described in the protocol
+    wchar_t pszPipeName[256];
+    // https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createnamedpipew
     int nCharactersWritten = -1;
     nCharactersWritten = wsprintf(
         pszPipeName,
@@ -47,14 +46,14 @@ PidEndpoint* PidEndpoint::CreateForWindows(int pid, IIpcRecorder* pRecorder)
     // connect to the named pipe
     HANDLE hPipe;
     hPipe = ::CreateFile(
-        pszPipeName,    // pipe name 
-        GENERIC_READ |  // read and write access 
+        pszPipeName,    // pipe name
+        GENERIC_READ |  // read and write access
         GENERIC_WRITE,
-        0,              // no sharing 
+        0,              // no sharing
         NULL,           // default security attributes
-        OPEN_EXISTING,  // opens existing pipe 
-        0,              // default attributes 
-        NULL);          // no template file 
+        OPEN_EXISTING,  // opens existing pipe
+        0,              // default attributes
+        NULL);          // no template file
 
     if (hPipe == INVALID_HANDLE_VALUE)
     {

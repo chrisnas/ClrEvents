@@ -55,6 +55,7 @@ public:
 
 public:
     DWORD Error;
+    uint64_t SessionId;
 
 private:
     EventPipeSession();
@@ -73,7 +74,7 @@ private:
     bool ReadObjectFields(ObjectFields& objectFields);
     bool ReadNextObject();
     ObjectType GetObjectType(ObjectHeader& header);
-    
+
     // event block parsing helpers
     bool ParseEventBlock(ObjectHeader& header);
     bool ParseEventBlob(bool isCompressed, DWORD& blobSize);
@@ -90,7 +91,7 @@ private:
 
     // sequence point block parsing helpers
     bool ParseSequencePointBlock(ObjectHeader& header);
-    
+
     bool ExtractBlock(const char* blockName, uint32_t& blockSize, uint64_t& blockOriginInFile);
     bool ReadBlockSize(const char* blockName, uint32_t& blockSize);
     bool ReadCompressedHeader(EventBlobHeader& header, DWORD& size);
@@ -105,10 +106,9 @@ private:
 private:
     bool Is64Bit;
     IIpcEndpoint* _pEndpoint;
-    uint64_t _sessionId;
     bool _stopRequested;
 
-    
+
     // Keep track of the position since the beginning of the "file"
     // i.e. starting at 0 from the first character of the NettraceHeader
     //      Nettrace
