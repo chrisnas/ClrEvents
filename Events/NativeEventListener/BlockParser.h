@@ -1,7 +1,8 @@
 #pragma once
 
-#include<stdint.h>
-#include<unordered_map>
+#include <stdint.h>
+#include <iostream>
+#include <unordered_map>
 #include <windows.h>
 
 #include "NettraceFormat.h"
@@ -13,7 +14,7 @@ public:
     uint32_t     MetadataId;
     std::wstring ProviderName;
     uint32_t     EventId;
-    std::wstring EventName; // could be empty
+    std::wstring EventName; // always empty
     uint64_t     Keywords;
     uint32_t     Version;
     uint32_t     Level;
@@ -38,6 +39,9 @@ class BlockParser
 public:
     BlockParser();
     bool Parse(uint8_t* pBlock, uint32_t bytesCount, uint64_t blockOriginInFile);
+
+public:
+    uint8_t PointerSize;
 
 protected:
     virtual bool OnParse() = 0;
@@ -134,8 +138,51 @@ private:
 };
 
 
+// from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
+#pragma pack(1)
+struct StackBlockHeader
+{
+    uint32_t FirstId;
+    uint32_t Count;
+};
+
+inline void DumpStackHeader(StackBlockHeader header)
+{
+    std::cout << "\nStack block header:\n";
+    std::cout << "   FirstID: " << header.FirstId << "\n";
+    std::cout << "   Count  : " << header.Count << "\n";
+}
+
+class EventCacheStack32
+{
+public:
+    uint32_t Id;
+    std::vector<uint32_t> Frames;
+};
+
+class EventCacheStack64
+{
+public:
+    uint32_t Id;
+    std::vector<uint64_t> Frames;
+};
+
+
 class StackParser : public BlockParser
 {
+public:
+    StackParser(
+        std::unordered_map<uint32_t, EventCacheStack32>& stacks32,
+        std::unordered_map<uint32_t, EventCacheStack64>& stacks64
+        );
+
 protected:
     virtual bool OnParse();
+
+private:
+    bool ParseStack(uint32_t stackId, DWORD& size);
+
+private:
+    std::unordered_map<uint32_t, EventCacheStack32>& _stacks32;
+    std::unordered_map<uint32_t, EventCacheStack64>& _stacks64;
 };

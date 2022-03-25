@@ -36,13 +36,13 @@ enum class ObjectType : uint8_t
 };
 
 #pragma pack(1)
-struct ObjectHeader 
+struct ObjectHeader
 {
     NettraceTag TagTraceObject;         // 5
     NettraceTag TagTypeObjectForTrace;  // 5
     NettraceTag TagType;                // 1
-    uint32_t Version;                   // 
-    uint32_t MinReaderVersion;          // 
+    uint32_t Version;                   //
+    uint32_t MinReaderVersion;          //
     uint32_t NameLength;                // length of UTF8 name that follows
 };
 
@@ -74,8 +74,8 @@ struct EventBlockHeader
 {
     uint16_t HeaderSize;
     uint16_t Flags;
-    uint64_t MinTimespamp;
-    uint64_t MaxTimespamp;
+    uint64_t MinTimestamp;
+    uint64_t MaxTimestamp;
 
     // some optional reserved space might be following
 };

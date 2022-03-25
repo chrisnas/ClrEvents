@@ -288,7 +288,9 @@ int wmain(int argc, wchar_t* argv[])
         ::CloseHandle(hThread);
     }
 
-    delete pClient;
+    // TODO: this tries to close the underlying named pipe
+    //       and never returns
+    //delete pClient;
 
     std::cout << "Exit application\n\n";
     std::cout << "\n";

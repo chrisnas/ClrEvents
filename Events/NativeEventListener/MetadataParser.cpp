@@ -88,11 +88,17 @@ bool MetadataParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWO
 {
     if (isCompressed)
     {
-        ReadCompressedHeader(header, blobSize);
+        if (!ReadCompressedHeader(header, blobSize))
+        {
+            return false;
+        }
     }
     else
     {
-        // TODO: read directly from the stream
+        if (!ReadUncompressedHeader(header, blobSize))
+        {
+            return false;
+        }
     }
 
     // TODO: uncomment to show blob header

@@ -226,6 +226,7 @@ BlockParser::BlockParser()
     _blockSize = 0;
     _pos = -1;
     _blockOriginInFile = 0;
+    PointerSize = 0; // will be set later on (when the trace object payload is read)
 }
 
 bool BlockParser::Parse(uint8_t* pBlock, uint32_t bytesCount, uint64_t blockOriginInFile)
@@ -237,7 +238,6 @@ bool BlockParser::Parse(uint8_t* pBlock, uint32_t bytesCount, uint64_t blockOrig
 
     return OnParse();
 }
-
 
 bool BlockParser::ReadByte(uint8_t& byte)
 {
@@ -339,7 +339,7 @@ bool BlockParser::ReadVarUInt64(uint64_t& val, DWORD& size)
     return true;
 }
 
-// read UTF16 character one after another until the \0 us found to rebuild a string
+// read UTF16 character one after another until the \0 is found to rebuild a string
 bool BlockParser::ReadWString(std::wstring& wstring, DWORD& bytesRead)
 {
     uint16_t character;
@@ -370,7 +370,6 @@ bool BlockParser::ReadWString(std::wstring& wstring, DWORD& bytesRead)
         wstring.push_back(character);
     }
 }
-
 
 // Check for block boundaries
 // ------------------------------------

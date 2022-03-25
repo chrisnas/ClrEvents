@@ -80,7 +80,7 @@ bool EventParser::OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD&
             }
             break;
 
-        default:
+        default:  // skip events we are not interested in
         {
             std::cout << "Event = " << metadataDef.EventId << "\n";
             SkipBytes(header.PayloadSize);
@@ -152,13 +152,25 @@ bool EventParser::OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metada
     std::cout << "   Amount64      = " << ulong << " bytes\n";
 
     // skip useless MT address
-    // TODO: handle 32/64 bit difference
-    if (!ReadLong(ulong))
+    // Note: handle 32/64 bit difference
+    if (_is64Bit)
     {
-        std::cout << "Error while reading allocation tick MT address\n";
-        return false;
+        if (!ReadLong(ulong))
+        {
+            std::cout << "Error while reading allocation tick MT address\n";
+            return false;
+        }
+        readBytesCount += sizeof(ulong);
     }
-    readBytesCount += sizeof(ulong);
+    else
+    {
+        if (!ReadDWord(dword))
+        {
+            std::cout << "Error while reading allocation tick MT address\n";
+            return false;
+        }
+        readBytesCount += sizeof(dword);
+    }
 
     std::wstring strBuffer;
     strBuffer.reserve(128);
@@ -184,14 +196,27 @@ bool EventParser::OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metada
     // get additional fields if any
     if (metadataDef.Version >= 3)
     {
-        // TODO: handle 32/64 bit difference
-        if (!ReadLong(ulong))
+        // Note: handle 32/64 bit difference
+        if (_is64Bit)
         {
-            std::cout << "Error while reading allocation tick object address\n";
-            return false;
+            if (!ReadLong(ulong))
+            {
+                std::cout << "Error while reading allocation tick object address\n";
+                return false;
+            }
+            readBytesCount += sizeof(ulong);
+            std::cout << "   Object addr   = 0x" << std::hex << ulong << std::dec << "\n";
         }
-        readBytesCount += sizeof(ulong);
-        std::cout << "   Object addr   = 0x" << std::hex << ulong << std::dec << "\n";
+        else
+        {
+            if (!ReadDWord(dword))
+            {
+                std::cout << "Error while reading allocation tick object address\n";
+                return false;
+            }
+            readBytesCount += sizeof(dword);
+            std::cout << "   Object addr   = 0x" << std::hex << dword << std::dec << "\n";
+        }
     }
 
     // skip the rest of the payload
@@ -245,6 +270,8 @@ bool EventParser::OnContentionStop(uint64_t threadId, DWORD payloadSize, EventCa
 
 // from https://docs.microsoft.com/en-us/dotnet/framework/performance/exception-thrown-v1-etw-event
 //
+// Type             wstring     Exception type
+// Message          wstring     Exception message
 // EIPCodeThrow     win:Pointer Instruction pointer where exception occurred.
 // ExceptionHR      win:UInt32  Exception HRESULT.
 // ExceptionFlags   win:UInt16
@@ -262,8 +289,6 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
 
     // string: exception type
     // string: exception message
-    // Note: followed by "instruction pointer"
-    //          could be 32 bit or 64 bit: how to figure out the bitness of the monitored application?
     std::wstring strBuffer;
     strBuffer.reserve(128);
     std::cout << "\nException thrown:\n";
@@ -296,7 +321,7 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
         readBytesCount += size;
 
         // handle empty string case (check for "NULL" in case of .NET 6+)
-        if (strBuffer.empty() || (wcsstr(strBuffer.c_str(), L"NULL") == 0))
+        if (strBuffer.empty() || (wcscmp(strBuffer.c_str(), L"NULL") == 0))
             std::wcout << L"   message = ''\n";
         else
         {
