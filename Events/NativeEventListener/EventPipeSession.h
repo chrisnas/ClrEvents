@@ -70,6 +70,7 @@ private:
     MetadataParser _metadataParser;
     EventParser _eventParser;
     StackParser _stackParser;
+    SequencePointParser _sequencePointParser;
 
     // Keep track of the position since the beginning of the "file"
     // i.e. starting at 0 from the first character of the NettraceHeader

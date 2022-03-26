@@ -51,6 +51,9 @@
     <ClCompile Include="RecordedEndpoint.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SequencePointParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DiagnosticsProtocol.h">

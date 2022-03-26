@@ -14,7 +14,7 @@ public:
     uint32_t     MetadataId;
     std::wstring ProviderName;
     uint32_t     EventId;
-    std::wstring EventName; // always empty
+    std::wstring EventName; // empty most of the time
     uint64_t     Keywords;
     uint32_t     Version;
     uint32_t     Level;
@@ -181,6 +181,23 @@ protected:
 
 private:
     bool ParseStack(uint32_t stackId, DWORD& size);
+
+private:
+    std::unordered_map<uint32_t, EventCacheStack32>& _stacks32;
+    std::unordered_map<uint32_t, EventCacheStack64>& _stacks64;
+};
+
+
+class SequencePointParser : public BlockParser
+{
+public:
+    SequencePointParser(
+        std::unordered_map<uint32_t, EventCacheStack32>& stacks32,
+        std::unordered_map<uint32_t, EventCacheStack64>& stacks64
+    );
+
+protected:
+    virtual bool OnParse();
 
 private:
     std::unordered_map<uint32_t, EventCacheStack32>& _stacks32;

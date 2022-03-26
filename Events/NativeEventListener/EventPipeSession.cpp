@@ -83,6 +83,7 @@ EventPipeSession::EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64
     _metadataParser(is64Bit, _metadata),
     _eventParser(is64Bit, _metadata),
     _stackParser(_stacks32, _stacks64),
+    _sequencePointParser(_stacks32, _stacks64),
     Is64Bit(is64Bit),
     _pEndpoint(pEndpoint),
     SessionId(sessionId)
@@ -128,6 +129,7 @@ bool EventPipeSession::Listen()
     while (ReadNextObject() && !_stopRequested)
     {
         std::cout << "------------------------------------------------\n";
+        std::cout << "\n________________________________________________\n";
     }
 
     return _stopRequested;
@@ -343,7 +345,18 @@ bool EventPipeSession::ParseSequencePointBlock(ObjectHeader& header)
     if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
-    return SkipBlock("SequencePoint");
+    //// uncomment to skip sequence point block parsing
+    //return SkipBlock("SequencePoint");
+
+    uint32_t blockSize = 0;
+
+    // read the block and send it to the corresponding parser
+    uint64_t blockOriginInFile = 0;
+    if (!ExtractBlock("SequencePoint", blockSize, blockOriginInFile))
+        return false;
+
+    return _sequencePointParser.Parse(_pBlock, blockSize, blockOriginInFile);
+
 }
 
 

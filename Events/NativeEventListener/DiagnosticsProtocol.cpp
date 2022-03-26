@@ -17,6 +17,9 @@ char GetCharFromBinary(uint8_t byte)
 
 void DumpBuffer(const uint8_t* pBuffer, DWORD byteCount)
 {
+    // TODO: uncomment to show memory buffer on console
+    return;
+
     DWORD pos = 0;
     char stringBuffer[LineWidth + 1];
     ::ZeroMemory(stringBuffer, LineWidth + 1);

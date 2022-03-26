@@ -154,6 +154,7 @@
     <ClCompile Include="NativeEventListener.cpp" />
     <ClCompile Include="PidEndpoint.cpp" />
     <ClCompile Include="RecordedEndpoint.cpp" />
+    <ClCompile Include="SequencePointParser.cpp" />
     <ClCompile Include="StackParser.cpp" />
   </ItemGroup>
   <ItemGroup>

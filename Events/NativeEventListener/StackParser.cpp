@@ -18,11 +18,11 @@ bool StackParser::OnParse()
     StackBlockHeader stackHeader;
     if (!Read(&stackHeader, sizeof(stackHeader)))
     {
-        auto error = ::GetLastError();
-        std::cout << "Error while reading stack block header: 0x" << std::hex << error << std::dec << "\n";
+        std::cout << "Error while reading stack block header\n";
         return false;
     }
 
+    // TODO: uncomment to dump stack header
     DumpStackHeader(stackHeader);
 
     // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
@@ -33,7 +33,7 @@ bool StackParser::OnParse()
     // the id of each callstack is computed based on the stackHeader.FirstId
     // (i.e. incrementing it after a callstack is read)
     // Note: it is possible to have empty callstack (bytesCount == 0)
-
+    //
     uint32_t stackId = stackHeader.FirstId;
     DWORD stackSize = 0;
     DWORD totalStacksSize = 0;
@@ -66,8 +66,7 @@ bool StackParser::ParseStack(uint32_t stackId, DWORD& size)
     uint32_t stackSize;
     if (!ReadDWord(stackSize))
     {
-        auto error = ::GetLastError();
-        std::cout << "Error while reading stack #" << stackId << " size: 0x" << std::hex << error << std::dec << "\n";
+        std::cout << "Error while reading stack #" << stackId << "\n";
         return false;
     }
     size += sizeof(stackSize);
@@ -89,7 +88,7 @@ bool StackParser::ParseStack(uint32_t stackId, DWORD& size)
         _stacks32[stackId].Frames.reserve(frameCount);
     }
 
-    std::cout << frameCount << " frames\n";
+    //std::cout << frameCount << " frames\n";
     // add frames
     for (size_t i = 0; i < frameCount; i++)
     {
@@ -98,14 +97,13 @@ bool StackParser::ParseStack(uint32_t stackId, DWORD& size)
             uint64_t frame;
             if (!ReadLong(frame))
             {
-                auto error = ::GetLastError();
-                std::cout << "Error while reading stack frame #" << i << " size: 0x" << std::hex << error << std::dec << "\n";
+                std::cout << "Error while reading stack frame #" << i << "\n";
                 return false;
             }
             size += sizeof(frame);
 
             _stacks64[stackId].Frames.push_back(frame);
-            std::cout << "   " << std::hex << frame << std::dec << "\n";
+            //std::cout << "   " << std::hex << frame << std::dec << "\n";
         }
         else
         {
@@ -113,13 +111,13 @@ bool StackParser::ParseStack(uint32_t stackId, DWORD& size)
             if (!ReadDWord(frame))
             {
                 auto error = ::GetLastError();
-                std::cout << "Error while reading stack frame #" << i << " size: 0x" << std::hex << error << std::dec << "\n";
+                std::cout << "Error while reading stack frame #" << i << "\n";
                 return false;
             }
             size += sizeof(frame);
 
             _stacks32[stackId].Frames.push_back(frame);
-            std::cout << "   " << std::hex << frame << std::dec << "\n";
+            //std::cout << "   " << std::hex << frame << std::dec << "\n";
         }
     }
 

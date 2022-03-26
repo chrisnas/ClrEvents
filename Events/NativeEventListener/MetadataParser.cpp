@@ -6,63 +6,6 @@
 #include "BlockParser.h"
 
 
-//MetadataParser::MetadataParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata) : _metadata(metadata)
-//{
-//}
-
-
-//// look at implementation:
-////  TraceEventNativeMethods.EVENT_RECORD* ReadEvent() implementation
-////  EventPipeBlock.FromStream(Deserializer)
-//bool MetadataParser::OnParse()
-//{
-//    // read event block header
-//    EventBlockHeader ebHeader = {};
-//    if (!Read(&ebHeader, sizeof(ebHeader)))
-//    {
-//        std::cout << "Error while reading MetadataBlock header\n";
-//        return false;
-//    }
-//
-//    // skip any optional content if any
-//    if (ebHeader.HeaderSize > sizeof(EventBlockHeader))
-//    {
-//        uint8_t optionalSize = ebHeader.HeaderSize - sizeof(EventBlockHeader);
-//        if (!SkipBytes(optionalSize))
-//        {
-//            std::cout << "Error while skipping optional info from MetadataBlock header\n";
-//            return false;
-//        }
-//    }
-//
-//    // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
-//    // the rest of the block is a list of Event blobs
-//    //
-//    DWORD blobSize = 0;
-//    DWORD totalBlobSize = 0;
-//    DWORD remainingBlockSize = _blockSize - ebHeader.HeaderSize;
-//    bool isCompressed = ((ebHeader.Flags & 1) == 1);
-//    while (ParseMetadataBlob(isCompressed, blobSize))
-//    {
-//        totalBlobSize += blobSize;
-//
-//        if (totalBlobSize >= remainingBlockSize - 1) // try to detect last blob
-//        {
-//            // don't forget to check the end block tag
-//            uint8_t tag;
-//            if (!ReadByte(tag) || (tag != NettraceTag::EndObject))
-//            {
-//                return false;
-//            }
-//
-//            return true;
-//        }
-//    }
-//
-//    return false;
-//}
-//
-
 void DumpMetadataDefinition(EventCacheMetadata metadataDef)
 {
     std::cout << "\nMetadata definition:\n";
