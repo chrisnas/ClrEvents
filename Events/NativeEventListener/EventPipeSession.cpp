@@ -66,7 +66,6 @@ bool CheckTraceObjectHeader(TraceObjectHeader& header)
     if (header.TagTypeObjectForTrace != NettraceTag::BeginPrivateObject) return false;
     if (header.TagType != NettraceTag::NullReference) return false;
 
-    if (header.Version != 4) return false;
     if (header.MinReaderVersion != 4) return false;
 
     if (header.NameLength != 5) return false;
@@ -77,7 +76,8 @@ bool CheckTraceObjectHeader(TraceObjectHeader& header)
     return true;
 }
 
-const uint32_t BLOCK_SIZE = 4096;
+const uint32_t BLOCK_SIZE = 4*1024;
+const uint32_t MAX_BLOCK_SIZE = 100*1024;  // max buffer size sent by CLR
 
 EventPipeSession::EventPipeSession(int pid, IIpcEndpoint* pEndpoint, uint64_t sessionId)
     :
@@ -302,7 +302,6 @@ bool EventPipeSession::ReadBlockSize(const char* blockName, uint32_t& blockSize)
 //  EventpipeEventBlock.ReadBlockContent()
 bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
 {
-    if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
     //// TODO: uncomment to dump the event block instead of parsing it
@@ -324,7 +323,6 @@ bool EventPipeSession::ParseEventBlock(ObjectHeader& header)
 //  EventPipeBlock.FromStream(Deserializer)
 bool EventPipeSession::ParseMetadataBlock(ObjectHeader& header)
 {
-    if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
     // TODO: uncomment to dump metadata block
@@ -346,7 +344,6 @@ const std::wstring EventPipeProvider = L"Microsoft-DotNETCore-EventPipe";
 
 bool EventPipeSession::ParseStackBlock(ObjectHeader& header)
 {
-    if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
     uint32_t blockSize = 0;
@@ -361,7 +358,6 @@ bool EventPipeSession::ParseStackBlock(ObjectHeader& header)
 
 bool EventPipeSession::ParseSequencePointBlock(ObjectHeader& header)
 {
-    if (header.Version != 2) return false;
     if (header.MinReaderVersion != 2) return false;
 
     //// uncomment to skip sequence point block parsing
@@ -391,8 +387,8 @@ bool EventPipeSession::ExtractBlock(const char* blockName, uint32_t& blockSize, 
     // check if it is needed to resize the block buffer
     if (_blockSize < blockSize)
     {
-        // don't expect blocks larger than 32KB
-        if (blockSize > 8 * BLOCK_SIZE)
+        // don't expect blocks larger than 100KB
+        if (blockSize > MAX_BLOCK_SIZE)
             return false;
 
         delete [] _pBlock;
