@@ -39,6 +39,7 @@ class BlockParser
 public:
     BlockParser();
     bool Parse(uint8_t* pBlock, uint32_t bytesCount, uint64_t blockOriginInFile);
+    void SetPointerSize(uint8_t pointerSize);
 
 public:
     uint8_t PointerSize;
@@ -61,7 +62,10 @@ protected:
 private:
     bool CheckBoundaries(uint32_t byteCount);
 
+
+// shared fields
 protected:
+    bool _is64Bit;
     uint32_t _blockSize;
     uint32_t _pos;
 
@@ -74,7 +78,7 @@ private:
 class EventParserBase : public BlockParser
 {
 public:
-    EventParserBase(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
+    EventParserBase(std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
 
 protected:
     std::unordered_map<uint32_t, EventCacheMetadata>& _metadata;
@@ -88,10 +92,6 @@ protected:
 protected:
     bool ReadCompressedHeader(EventBlobHeader& header, DWORD& size);
     bool ReadUncompressedHeader(EventBlobHeader& header, DWORD& size);
-
-// shared fields
-protected:
-    bool _is64Bit;
 };
 
 
@@ -101,7 +101,7 @@ protected:
 class MetadataParser : public EventParserBase
 {
 public:
-    MetadataParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
+    MetadataParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
 
 protected:
     virtual bool OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD& blobSize);
@@ -116,7 +116,7 @@ class EventParser : public EventParserBase
 {
 // TODO: probably pass a IEventListener interface that contains OnException, OnAllocationTick,...
 public:
-    EventParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
+    EventParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata);
 
 protected:
     virtual bool OnParseBlob(EventBlobHeader& header, bool isCompressed, DWORD& blobSize);
@@ -130,11 +130,6 @@ private:
     bool OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metadataDef);
     bool OnAllocationTick(DWORD payloadSize, EventCacheMetadata& metadataDef);
     bool OnContentionStop(uint64_t threadId, DWORD payloadSize, EventCacheMetadata& metadataDef);
-
-private:
-    // Size of the ExceptionThrown payload AFTER the Message field
-    // see OnExceptionThrown for more details
-    uint16_t _exceptionRemainingPayloadSize;
 };
 
 

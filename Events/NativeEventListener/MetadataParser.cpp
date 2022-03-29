@@ -21,9 +21,9 @@ void DumpMetadataDefinition(EventCacheMetadata metadataDef)
     std::cout << "   Level   : " << metadataDef.Level << "\n";
 }
 
-MetadataParser::MetadataParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
+MetadataParser::MetadataParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
     :
-    EventParserBase(is64Bit, metadata)
+    EventParserBase(metadata)
 {
 }
 

@@ -1,15 +1,14 @@
 #include <iostream>
-
+#include <sstream>
 #include "BlockParser.h"
 
 
-EventParserBase::EventParserBase(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
+EventParserBase::EventParserBase(std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
     :
-    _is64Bit{is64Bit},
     _metadata(metadata)
 {
+    _is64Bit = true;  // will be set later
 }
-
 
 // look at implementation:
 //  TraceEventNativeMethods.EVENT_RECORD* ReadEvent() implementation
@@ -222,11 +221,32 @@ bool EventParserBase::ReadCompressedHeader(EventBlobHeader& header, DWORD& size)
 
 BlockParser::BlockParser()
 {
+    _is64Bit = true;  // will be set later
     _pBlock = nullptr;
     _blockSize = 0;
     _pos = -1;
     _blockOriginInFile = 0;
     PointerSize = 0; // will be set later on (when the trace object payload is read)
+}
+
+void BlockParser::SetPointerSize(uint8_t pointerSize)
+{
+    PointerSize = pointerSize;
+    if (pointerSize == 8)
+    {
+        _is64Bit = true;
+    }
+    else
+        if (pointerSize == 4)
+        {
+            _is64Bit = false;
+        }
+        else
+        {
+            std::stringstream builder;
+            builder << "Invalid pointer size: " << pointerSize;
+            throw std::exception(builder.str().c_str());
+        }
 }
 
 bool BlockParser::Parse(uint8_t* pBlock, uint32_t bytesCount, uint64_t blockOriginInFile)

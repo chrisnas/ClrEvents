@@ -17,8 +17,8 @@ char GetCharFromBinary(uint8_t byte)
 
 void DumpBuffer(const uint8_t* pBuffer, DWORD byteCount)
 {
-    // TODO: uncomment to show memory buffer on console
-    return;
+    //// TODO: uncomment to skip displaying memory buffer on console
+    //return;
 
     DWORD pos = 0;
     char stringBuffer[LineWidth + 1];

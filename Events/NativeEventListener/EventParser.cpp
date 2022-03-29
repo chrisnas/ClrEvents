@@ -4,13 +4,10 @@
 #include "BlockParser.h"
 
 
-EventParser::EventParser(bool is64Bit, std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
+EventParser::EventParser(std::unordered_map<uint32_t, EventCacheMetadata>& metadata)
     :
-    EventParserBase(is64Bit, metadata)
+    EventParserBase(metadata)
 {
-    // Size of the ExceptionThrown payload AFTER the Message field
-    // see OnExceptionThrown for more details
-    _exceptionRemainingPayloadSize = (is64Bit ? 8 : 4) + 4 + 2 + 2;
 }
 
 
@@ -305,9 +302,13 @@ bool EventParser::OnExceptionThrown(DWORD payloadSize, EventCacheMetadata& metad
         std::wcout << L"   type    = " << strBuffer.c_str() << L"\n";
 
     strBuffer.clear();
+
+    // Size of the ExceptionThrown payload AFTER the Message field
+    uint16_t exceptionRemainingPayloadSize = (_is64Bit ? 8 : 4) + 4 + 2 + 2;
+
     // In case of "empty" message, it might not be even visible as "\0" before .NET Core 6 (and after, will be "NULL")
     // so it is needed to check if the remaining payload contains such a string
-    if ((payloadSize - readBytesCount) == _exceptionRemainingPayloadSize)
+    if ((payloadSize - readBytesCount) == exceptionRemainingPayloadSize)
     {
         std::wcout << L"   message = ''\n";
     }

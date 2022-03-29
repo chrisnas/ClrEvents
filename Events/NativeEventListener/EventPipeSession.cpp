@@ -2,6 +2,7 @@
 
 #include "EventPipeSession.h"
 #include "DiagnosticsProtocol.h"
+#include "DiagnosticsClient.h"
 
 // from https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md
 //
@@ -78,16 +79,17 @@ bool CheckTraceObjectHeader(TraceObjectHeader& header)
 
 const uint32_t BLOCK_SIZE = 4096;
 
-EventPipeSession::EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64_t sessionId)
+EventPipeSession::EventPipeSession(int pid, IIpcEndpoint* pEndpoint, uint64_t sessionId)
     :
-    _metadataParser(is64Bit, _metadata),
-    _eventParser(is64Bit, _metadata),
+    _pid(pid),
+    _metadataParser(_metadata),
+    _eventParser(_metadata),
     _stackParser(_stacks32, _stacks64),
     _sequencePointParser(_stacks32, _stacks64),
-    Is64Bit(is64Bit),
     _pEndpoint(pEndpoint),
     SessionId(sessionId)
 {
+    Is64Bit = true;  // will be computed when the nettrace stream will be read in Listen()
     Error = 0;
     _position = 0;
     _stopRequested = false;
@@ -116,9 +118,9 @@ bool EventPipeSession::Listen()
 
     // use the "trace object" fields to figure out the bitness of the application
     Is64Bit = ofTrace.PointerSize == 8;
-    _stackParser.PointerSize = ofTrace.PointerSize;
-    _metadataParser.PointerSize = ofTrace.PointerSize;
-    _eventParser.PointerSize = ofTrace.PointerSize;
+    _stackParser.SetPointerSize(ofTrace.PointerSize);
+    _metadataParser.SetPointerSize(ofTrace.PointerSize);
+    _eventParser.SetPointerSize(ofTrace.PointerSize);
 
     // don't forget to check the end object tag
     uint8_t tag;
@@ -126,7 +128,9 @@ bool EventPipeSession::Listen()
         return false;
 
     // read one "object" after the other
-    while (ReadNextObject() && !_stopRequested)
+    // until the EventPipe gets deconnected
+    // after the Stop command has been processed
+    while (ReadNextObject())
     {
         std::cout << "------------------------------------------------\n";
         std::cout << "\n________________________________________________\n";
@@ -140,7 +144,14 @@ bool EventPipeSession::Stop()
 {
     _stopRequested = true;
 
-    // it is expected that a StopSession command will be sent for the current session id
+    if (_pid == -1)
+        return true;
+
+    // it is neeeded to use a different ipc connection to stop the Session
+    DiagnosticsClient* pStopClient = DiagnosticsClient::Create(_pid, nullptr);
+    pStopClient->StopEventPipeSession(SessionId);
+    delete pStopClient;
+
     return true;
 }
 
@@ -166,7 +177,15 @@ bool EventPipeSession::ReadNextObject()
     if (!Read(&header, sizeof(ObjectHeader)))
     {
         Error = ::GetLastError();
-        std::cout << "Error while reading Object header: 0x" << std::hex << Error << std::dec << "\n";
+        if (Error == ERROR_PIPE_NOT_CONNECTED)
+        {
+            std::cout << "EventPipe has been deconnected...\n";
+        }
+        else
+        {
+            std::cout << "Error while reading Object header: 0x" << std::hex << Error << std::dec << "\n";
+        }
+
         return false;
     }
 

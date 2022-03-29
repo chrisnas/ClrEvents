@@ -23,7 +23,7 @@ public:
 class EventPipeSession
 {
 public:
-    EventPipeSession(bool is64Bit, IIpcEndpoint* pEndpoint, uint64_t sessionId);
+    EventPipeSession(int pid, IIpcEndpoint* pEndpoint, uint64_t sessionId);
     ~EventPipeSession();
 
     bool Listen();
@@ -31,6 +31,7 @@ public:
 
 public:
     DWORD Error;
+    int _pid;
     uint64_t SessionId;
 
 private:

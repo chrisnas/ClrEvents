@@ -228,19 +228,14 @@ int wmain(int argc, wchar_t* argv[])
     //return 0;
 
     DiagnosticsClient* pClient = nullptr;
-    DiagnosticsClient* pStopClient = nullptr;
     if (pid != -1)
     {
         pClient = DiagnosticsClient::Create(pid, outputFilename);
-        pStopClient = DiagnosticsClient::Create(pid, nullptr);
     }
     else
     if (inputFilename != nullptr)
     {
         pClient = DiagnosticsClient::Create(inputFilename, outputFilename);
-
-        // no need to stop a live session when replay a recorded session
-        pStopClient = nullptr;
     }
 
     if (pClient == nullptr)
@@ -253,11 +248,9 @@ int wmain(int argc, wchar_t* argv[])
     //// Note: it seems that the connection gets closed after the response so pClient can't be reused
 
     // listen to CLR events
-    bool is64Bit = true; // TODO: need to figure out the bitness of monitored application (using the Process::ProcessInfo command)
 
     // TODO: pass an IIpcRecorder
     auto pSession = pClient->OpenEventPipeSession(
-        is64Bit,
             EventKeyword::gc |
             EventKeyword::exception |
             EventKeyword::contention
@@ -275,11 +268,6 @@ int wmain(int argc, wchar_t* argv[])
 
         std::cout << "Stopping session\n\n";
         pSession->Stop();
-
-        // it is neeeded to use a different ipc connection to stop the pSession
-        if (pStopClient != nullptr)
-            pStopClient->StopEventPipeSession(pSession->SessionId);
-
         std::cout << "Session stopped\n\n";
 
         // test if it works
@@ -288,9 +276,7 @@ int wmain(int argc, wchar_t* argv[])
         ::CloseHandle(hThread);
     }
 
-    // TODO: this tries to close the underlying named pipe
-    //       and never returns
-    //delete pClient;
+    delete pClient;
 
     std::cout << "Exit application\n\n";
     std::cout << "\n";

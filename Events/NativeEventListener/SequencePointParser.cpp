@@ -30,7 +30,7 @@ bool SequencePointParser::OnParse()
 {
     // reset stack caches
     // read https://github.com/microsoft/perfview/blob/main/src/TraceEvent/EventPipe/EventPipeFormat.md#sequencepointblock-object
-    // for mo details
+    // for more details
     _stacks32.clear();
     _stacks64.clear();
 

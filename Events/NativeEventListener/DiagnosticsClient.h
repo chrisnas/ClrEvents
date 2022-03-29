@@ -24,7 +24,7 @@ public:
     // EVENTPIPE
     // The Stop command to cancel the receiving of CLR events (hence returning from EventPipeSession::Listen())
     //
-    EventPipeSession* OpenEventPipeSession(bool is64Bit, uint64_t keywords, EventVerbosityLevel verbosity);
+    EventPipeSession* OpenEventPipeSession(uint64_t keywords, EventVerbosityLevel verbosity);
     bool StopEventPipeSession(uint64_t sessionId);
 
     // DUMP
