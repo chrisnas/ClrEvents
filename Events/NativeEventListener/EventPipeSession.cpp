@@ -406,7 +406,7 @@ bool EventPipeSession::ExtractBlock(const char* blockName, uint32_t& blockSize, 
         return false;
     }
     std::cout << "\n" << blockName << " block (" << blockSize << " bytes)\n";
-    DumpBuffer(_pBlock, blockSize);
+    //DumpBuffer(_pBlock, blockSize);
 
     return true;
 }
@@ -428,7 +428,7 @@ bool EventPipeSession::SkipBlock(const char* blockName)
         return false;
     }
     std::cout << "\n" << blockName << " block (" << blockSize << " bytes)\n";
-    DumpBuffer(pBuffer, blockSize);
+    //DumpBuffer(pBuffer, blockSize);
     delete[] pBuffer;
 
     return true;

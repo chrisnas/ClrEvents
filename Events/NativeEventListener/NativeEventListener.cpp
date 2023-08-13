@@ -9,6 +9,7 @@
 
 #include "DiagnosticsClient.h"
 #include "DiagnosticsProtocol.h"
+#include "GcDumpSession.h"
 
 
 void DumpNamedPipeInfo(HANDLE hPipe, LPCWSTR pszName)
@@ -226,57 +227,73 @@ int wmain(int argc, wchar_t* argv[])
     //// direct connection and ProcessInfo command handling
     //BasicConnection(pid);
     //return 0;
+    //------------------------------------------------------------------
 
-    DiagnosticsClient* pClient = nullptr;
-    if (pid != -1)
-    {
-        pClient = DiagnosticsClient::Create(pid, outputFilename);
-    }
-    else
-    if (inputFilename != nullptr)
-    {
-        pClient = DiagnosticsClient::Create(inputFilename, outputFilename);
-    }
-
-    if (pClient == nullptr)
-        return -1;
 
     //// get process information with DiagnosticsClient
+    //DiagnosticsClient* pClient = nullptr;
+    //if (pid != -1)
+    //{
+    //    pClient = DiagnosticsClient::Create(pid, outputFilename);
+    //}
+    //else
+    //if (inputFilename != nullptr)
+    //{
+    //    pClient = DiagnosticsClient::Create(inputFilename, outputFilename);
+    //}
+
+    //if (pClient == nullptr)
+    //    return -1;
+
     //ProcessInfoRequest request;
     //pClient->GetProcessInfo(request);
     //DumpProcessInfo(request);
     //// Note: it seems that the connection gets closed after the response so pClient can't be reused
+    //------------------------------------------------------------------
 
-    // listen to CLR events
+    //// listen to CLR events
+    //// TODO: pass an IIpcRecorder
+    //auto pSession = pClient->OpenEventPipeSession(
+    //        EventKeyword::gc |
+    //        EventKeyword::exception |
+    //        EventKeyword::contention
+    //        ,
+    //    EventVerbosityLevel::Verbose  // required for AllocationTick
+    //    );
+    //if (pSession != nullptr)
+    //{
+    //    DWORD tid = 0;
+    //    auto hThread = ::CreateThread(nullptr, 0, ListenToEvents, pSession, 0, &tid);
 
-    // TODO: pass an IIpcRecorder
-    auto pSession = pClient->OpenEventPipeSession(
-            EventKeyword::gc |
-            EventKeyword::exception |
-            EventKeyword::contention
-            ,
-        EventVerbosityLevel::Verbose  // required for AllocationTick
-        );
-    if (pSession != nullptr)
-    {
-        DWORD tid = 0;
-        auto hThread = ::CreateThread(nullptr, 0, ListenToEvents, pSession, 0, &tid);
+    //    std::cout << "Press ENTER to stop listening to events...\n\n";
+    //    std::string line;
+    //    std::getline(std::cin, line);
 
-        std::cout << "Press ENTER to stop listening to events...\n\n";
-        std::string line;
-        std::getline(std::cin, line);
+    //    std::cout << "Stopping session\n\n";
+    //    pSession->Stop();
+    //    std::cout << "Session stopped\n\n";
 
-        std::cout << "Stopping session\n\n";
-        pSession->Stop();
-        std::cout << "Session stopped\n\n";
+    //    // test if it works
+    //    ::Sleep(1000);
 
-        // test if it works
-        ::Sleep(1000);
+    //    ::CloseHandle(hThread);
+    //}
+    //
+    // delete pClient;
+    //------------------------------------------------------------------
 
-        ::CloseHandle(hThread);
-    }
 
-    delete pClient;
+    // trigger a "gcdump" session
+    GcDumpSession gcdump(pid);
+    gcdump.TriggerDump();
+
+    std::cout << "Press ENTER to stop gcdump...\n\n";
+    std::string line;
+    std::getline(std::cin, line);
+    std::cout << "Stopping session\n\n";
+    gcdump.StopDump();
+    //------------------------------------------------------------------
+
 
     std::cout << "Exit application\n\n";
     std::cout << "\n";

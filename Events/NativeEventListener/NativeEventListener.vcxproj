@@ -29,26 +29,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -149,13 +149,17 @@
     <ClCompile Include="EventParser.cpp" />
     <ClCompile Include="EventPipeSession.cpp" />
     <ClCompile Include="FileRecorder.cpp" />
+    <ClCompile Include="GcDumpSession.cpp" />
+    <ClCompile Include="GcDumpState.cpp" />
     <ClCompile Include="IpcEndpoint.cpp" />
+    <ClCompile Include="LiveObject.cpp" />
     <ClCompile Include="MetadataParser.cpp" />
     <ClCompile Include="NativeEventListener.cpp" />
     <ClCompile Include="PidEndpoint.cpp" />
     <ClCompile Include="RecordedEndpoint.cpp" />
     <ClCompile Include="SequencePointParser.cpp" />
     <ClCompile Include="StackParser.cpp" />
+    <ClCompile Include="TypeInfo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BlockParser.h" />
@@ -163,12 +167,16 @@
     <ClInclude Include="DiagnosticsProtocol.h" />
     <ClInclude Include="EventPipeSession.h" />
     <ClInclude Include="FileRecorder.h" />
+    <ClInclude Include="GcDumpSession.h" />
+    <ClInclude Include="GcDumpState.h" />
     <ClInclude Include="IIpcEndpoint.h" />
     <ClInclude Include="IpcEndpoint.h" />
     <ClInclude Include="IIpcRecorder.h" />
+    <ClInclude Include="LiveObject.h" />
     <ClInclude Include="NettraceFormat.h" />
     <ClInclude Include="PidEndpoint.h" />
     <ClInclude Include="RecordedEndpoint.h" />
+    <ClInclude Include="TypeInfo.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

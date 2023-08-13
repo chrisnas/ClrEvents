@@ -58,6 +58,7 @@ EventPipeSession* DiagnosticsClient::OpenEventPipeSession(uint64_t keywords, Eve
     if (!request.Process(_pEndpoint, keywords, verbosity))
         return nullptr;
 
+    // TODO: pass an IClrEvent interface that would contain OnXXX callbacks; one per interesting event
     auto session = new EventPipeSession(_pid, _pEndpoint, request.SessionId);
     return session;
 }
