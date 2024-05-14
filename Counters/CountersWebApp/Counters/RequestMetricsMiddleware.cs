@@ -34,13 +34,13 @@ namespace Counters.Request
             finally
             {
                 // compare the counter of GCs after processing the request
-                // if the count changed, a garbage collection occurred during the processing 
-                // and might have slowed it down and maybe reaching SLA limit: this could 
+                // if the count changed, a garbage collection occurred during the processing
+                // and might have slowed it down and maybe reaching SLA limit: this could
                 // explain 9x-percentile in slow requests for example
                 if (GetCurrentCollectionCount() - collectionCountBeforeProcessingTheRequest != 0)
                 {
                     // update with collection metric
-                    Debug.WriteLine("a GC occured during request processing");
+                    Debug.WriteLine("a GC occurred during request processing");
                     RequestCountersEventSource.Instance.AddRequestWithGcDuration(sw.ElapsedMilliseconds);
                 }
                 else

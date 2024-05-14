@@ -39,6 +39,7 @@ class GcDumpState
 {
 public:
     GcDumpState();
+    ~GcDumpState();
     void DumpHeap();
 
 public:

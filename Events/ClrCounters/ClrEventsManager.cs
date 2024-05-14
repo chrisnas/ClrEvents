@@ -58,7 +58,7 @@ namespace ClrCounters
                 new Provider(
                     name: "Microsoft-Windows-DotNETRuntime",
                     keywords:   GetKeywords(),
-                    eventLevel: EventLevel.Informational),
+                    eventLevel: EventLevel.Verbose), // for AllocationTick
             };
 
             return providers;
@@ -122,7 +122,7 @@ namespace ClrCounters
             // decide which provider to listen to with filters if needed
             _session.EnableProvider(
                 ClrTraceEventParser.ProviderGuid,  // CLR provider
-                ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ? 
+                ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ?
                     TraceEventLevel.Verbose : TraceEventLevel.Informational,
                 GetKeywords(),
                 options
@@ -231,7 +231,7 @@ namespace ClrCounters
             info.ContentionStartRelativeMSec = data.TimeStampRelativeMSec;
         }
         private void OnContentionStop(ContentionTraceData data)
-        
+
 {
             ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
             if (info == null)
@@ -323,7 +323,7 @@ namespace ClrCounters
                 // LOH = 3
                 for (int gen = 0; gen <= 3; gen++)
                 {
-                    sizes[gen] += before ? 
+                    sizes[gen] += before ?
                         gc.PerHeapHistories[heap].GenData[gen].ObjSpaceBefore:
                         gc.PerHeapHistories[heap].GenData[gen].ObjSizeAfter;
                 }
@@ -341,7 +341,7 @@ namespace ClrCounters
                 info.ProcessID,
                 info.AllocationAmount,
                 info.AllocationAmount64,
-                info.AllocationKind == GCAllocationKind.Large,
+                info.AllocationKind,
                 info.TypeName,
                 info.HeapIndex,
                 info.Address

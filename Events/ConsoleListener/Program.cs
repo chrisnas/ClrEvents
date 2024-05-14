@@ -1,5 +1,5 @@
 ﻿// EventPipe are used if ETW is not defined
-#define ETW
+//#define ETW
 
 #if ETW
 using Microsoft.Diagnostics.Tracing.Session;
@@ -56,7 +56,8 @@ namespace ConsoleListener
             Task.Run(() =>
             {
                 // don't want allocation ticks by default because it might have a noticeable impact
-                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
+                //ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
+                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All);
                 RegisterEventHandlers(manager);
 
                 // this is a blocking call until the session is disposed
@@ -73,11 +74,11 @@ namespace ConsoleListener
         private static void RegisterEventHandlers(ClrEventsManager manager)
         {
             manager.FirstChanceException += OnFirstChanceException;
-            manager.Finalize += OnFinalize;
-            manager.Contention += OnContention;
+            //manager.Finalize += OnFinalize;
+            //manager.Contention += OnContention;
             //manager.ThreadPoolStarvation += OnThreadPoolStarvation;
             manager.GarbageCollection += OnGarbageCollection;
-            //manager.AllocationTick += OnAllocationTick;
+            manager.AllocationTick += OnAllocationTick;
         }
 
         private static void OnThreadPoolStarvation(object sender, ThreadPoolStarvationArgs e)
@@ -112,8 +113,9 @@ namespace ConsoleListener
 
         private static void OnAllocationTick(object sender, AllocationTickArgs e)
         {
-            var isLarge = e.IsLargeAlloc ? "Large" : "Small";
-            Console.WriteLine($"[{e.ProcessId,7}] a {isLarge} | {e.AllocationAmount64,12} - {e.TypeName}");
+            int k = (int)e.AllocationKind;
+            var kind =  (k == 0) ? "Small" : (k == 1) ? "Large" : "Pinned";
+            Console.WriteLine($"[{e.ProcessId,7}] {kind, 7} | {e.AllocationAmount64,9} - {e.TypeName}");
         }
     }
 }
