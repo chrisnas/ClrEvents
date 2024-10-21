@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>activity</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-activity</ToolCommandName>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>dotnet-activity</PackageId>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Title>dotnet-activity</Title>
+    <Authors>Christophe Nasarre</Authors>
+    <Owners>chrisnas</Owners>
+    <PackageProjectUrl>https://github.com/chrisnas/ClrEvents</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/chrisnas/ClrEvents/blob/master/LICENSE</PackageLicenseUrl>
+    <Description>Global CLI tool to dump ActivityID guids</Description>
+    <PackageReleaseNotes>Initial version</PackageReleaseNotes>
+    <Copyright>Copyright Christophe Nasarre $([System.DateTime]::UtcNow.ToString(yyyy))</Copyright>
+    <PackageTags>ActivityID TraceEvent ETW Perfview</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Events.Shared\Events.Shared.csproj" />
+  </ItemGroup>
+</Project>

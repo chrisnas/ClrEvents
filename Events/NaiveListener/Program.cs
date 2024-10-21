@@ -20,7 +20,7 @@ namespace NaiveListener
             }
             if (s_pid == 0)
             {
-                s_pid = 16484;
+                s_pid = 36064;
             }
 
             // list ETW sessions
@@ -113,16 +113,23 @@ namespace NaiveListener
                     //};
 
 
-                    //userSession.Source.Dynamic.All += delegate (TraceEvent data)
-                    //{
-                    //    // skip verbose and unneeded events
-                    //    if (SkipEvent(data))
-                    //        return;
+                    userSession.Source.Dynamic.All += delegate (TraceEvent data)
+                    {
+                        // skip verbose and unneeded events
+                        //if (SkipEvent(data))
+                        //    return;
 
-                    //    // raw dump of the events
-                    //    //Console.WriteLine($"{data.ProcessID,7} <{data.ProviderName}:{data.ID}>\r\n   ___[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName} <| {data.GetType().Name}\r\n");
-                    //    //Console.WriteLine($"\r\n   ...[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName} <| {data.GetType().Name}");
-                    //};
+                        if (data.ProcessID != s_pid) return;
+                        if ((data.TaskName != "GC"))
+                        {
+                            return;
+                        }
+
+                        // raw dump of the events
+                        Console.WriteLine($"{data.ProcessID,7} > {data.ActivityID,12}  ___[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName}\r\n");
+                        //Console.WriteLine($"{data.ProcessID,7} <{data.ProviderName}:{data.ID}>\r\n   ___[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName} <| {data.GetType().Name}\r\n");
+                        //Console.WriteLine($"\r\n   ...[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName} <| {data.GetType().Name}");
+                    };
 
                     // decide which provider to listen to with filters if needed
                     userSession.EnableProvider(
@@ -165,7 +172,7 @@ namespace NaiveListener
                 (data.Opcode == (TraceEventOpcode)11) ||
                 (data.Opcode == (TraceEventOpcode)32) ||
                 (data.Opcode == (TraceEventOpcode)15) ||
-                (data.Opcode == (TraceEventOpcode)19) 
+                (data.Opcode == (TraceEventOpcode)19)
                 //(data.Opcode == (TraceEventOpcode)10) ||
                 //(data.Opcode == (TraceEventOpcode)21) ||
                 //(data.Opcode == (TraceEventOpcode)22) ||

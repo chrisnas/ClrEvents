@@ -1,6 +1,6 @@
 ﻿using System;
 using Microsoft.Diagnostics.Tracing.Parsers.Clr;
-using ClrCounters;
+using Shared;
 
 namespace GcLog
 {

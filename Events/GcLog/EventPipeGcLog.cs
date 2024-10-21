@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Text;
-using ClrCounters;
+using Shared;
 
 namespace GcLog
 {
     public class EventPipeGcLog : GcLogBase
     {
-        // TODO: don't forget to update the header if you are adding more columns 
+        // TODO: don't forget to update the header if you are adding more columns
         private const string Header =
             "StartRelativeMSec,Number,Generation,Type,Reason,IsCompacting,SuspensionDurationInMilliSeconds,PauseDurationInMilliSeconds,FinalPauseDurationInMilliSeconds,Gen0Size,Gen1Size,Gen2Size,LOHSize,ObjGen0Before,ObjGen1Before,ObjGen2Before,ObjLOHBefore,ObjGen0After,ObjGen1After,ObjGen2After,ObjLOHAfter";
 

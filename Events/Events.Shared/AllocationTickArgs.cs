@@ -1,10 +1,10 @@
 ﻿using System;
 
-namespace ClrCounters
+namespace Shared
 {
     public struct AllocationTickArgs
     {
-        internal AllocationTickArgs(DateTime timeStamp, int processId, int allocationAmount, long allocationAmount64, 
+        internal AllocationTickArgs(DateTime timeStamp, int processId, int allocationAmount, long allocationAmount64,
             bool isLargeAlloc, string typeName, int heapIndex, ulong address)
         {
             TimeStamp = timeStamp;

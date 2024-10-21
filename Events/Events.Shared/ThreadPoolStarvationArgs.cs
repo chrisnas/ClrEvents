@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ClrCounters
+namespace Shared
 {
     public class ThreadPoolStarvationArgs : ClrEventArgs
     {

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Diagnostics.Tracing;
-using ClrCounters;
+using Shared;
 using Microsoft.Diagnostics.Tracing.Parsers.Clr;
 
 namespace GcLog
@@ -108,7 +108,7 @@ namespace GcLog
             // If a BCG is already started, FGC (0/1) are possible and will finish before the BGC
             //
             if (
-                (GetFieldValue<uint>(e, "Depth") == 2) && 
+                (GetFieldValue<uint>(e, "Depth") == 2) &&
                 ((GCType)GetFieldValue<uint>(e, "Type") == GCType.BackgroundGC)
                 )
             {
@@ -195,7 +195,7 @@ namespace GcLog
         private void OnGcSuspendEEBegin(EventWrittenEventArgs e)
         {
             // we don't know yet what will be the next GC corresponding to this suspension
-            // so it is kept until next GCStart 
+            // so it is kept until next GCStart
             _gcInfo.SuspensionStart = e.TimeStamp;
         }
 
@@ -236,7 +236,7 @@ namespace GcLog
             // --> its end will be detected during GcGlobalHistory event
         }
 
-        
+
         private GCDetails GetCurrentGC(GCInfo info)
         {
             if (info.GCInProgress != null)
@@ -277,8 +277,8 @@ namespace GcLog
             long[] objSizeAfter = new long[4] { 0, 0, 0, 0 };
 
             return new GarbageCollectionArgs(
-                _pid, startRelativeMSec, number, generation, reason, type, isCompacting, 
-                gen0Size, gen1Size, gen2Size, lohSize, objSizeBefore, objSizeAfter, 
+                _pid, startRelativeMSec, number, generation, reason, type, isCompacting,
+                gen0Size, gen1Size, gen2Size, lohSize, objSizeBefore, objSizeAfter,
                 suspensionDuration, pauseDuration, finalPauseDuration);
         }
     }

@@ -1,4 +1,4 @@
-﻿namespace ClrCounters
+﻿namespace Shared
 {
     public struct HeapDetails
     {

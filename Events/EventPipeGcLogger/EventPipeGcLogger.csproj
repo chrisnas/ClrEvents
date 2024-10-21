@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <Platforms>AnyCPU;x64</Platforms>
@@ -18,6 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ClrCounters\ClrCounters.csproj" />
+    <ProjectReference Include="..\Events.Shared\Events.Shared.csproj" />
   </ItemGroup>
 </Project>

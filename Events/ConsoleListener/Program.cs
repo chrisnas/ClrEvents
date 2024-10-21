@@ -1,12 +1,12 @@
 ﻿// EventPipe are used if ETW is not defined
-#define ETW
+//#define ETW
 
 #if ETW
 using Microsoft.Diagnostics.Tracing.Session;
 #endif
 using System;
 using System.Threading.Tasks;
-using ClrCounters;
+using Shared;
 
 
 namespace ConsoleListener
@@ -22,7 +22,7 @@ namespace ConsoleListener
         static void Main(string[] args)
         {
             // filter on process if any
-            int pid = -1;
+            int pid = 53412;
             if (args.Length == 1)
             {
                 int.TryParse(args[0], out pid);
@@ -56,7 +56,8 @@ namespace ConsoleListener
             Task.Run(() =>
             {
                 // don't want allocation ticks by default because it might have a noticeable impact
-                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
+                //ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
+                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All);
                 RegisterEventHandlers(manager);
 
                 // this is a blocking call until the session is disposed
@@ -75,9 +76,9 @@ namespace ConsoleListener
             manager.FirstChanceException += OnFirstChanceException;
             manager.Finalize += OnFinalize;
             manager.Contention += OnContention;
-            //manager.ThreadPoolStarvation += OnThreadPoolStarvation;
+            manager.ThreadPoolStarvation += OnThreadPoolStarvation;
             manager.GarbageCollection += OnGarbageCollection;
-            //manager.AllocationTick += OnAllocationTick;
+            manager.AllocationTick += OnAllocationTick;
         }
 
         private static void OnThreadPoolStarvation(object sender, ThreadPoolStarvationArgs e)

@@ -1,4 +1,4 @@
-﻿namespace ClrCounters
+﻿namespace Shared
 {
     public enum GarbageCollectionReason
     {
@@ -24,7 +24,7 @@
     public struct GarbageCollectionArgs
     {
         public GarbageCollectionArgs(int processId, double startRelativeMSec,
-            int number, int generation, GarbageCollectionReason reason, GarbageCollectionType type, 
+            int number, int generation, GarbageCollectionReason reason, GarbageCollectionType type,
             bool isCompacting, long gen0Size, long gen1Size, long gen2Size, long lohSize,
             long[] objSizeBefore, long[] objSizeAfter,
             double suspensionDuration, double pauseDuration, double finalPauseDuration)

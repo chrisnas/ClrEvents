@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ClrCounters
+namespace Shared
 {
     [Flags]
     public enum EventFilter

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace ClrCounters
+namespace Shared
 {
     public class TypesInfo
     {

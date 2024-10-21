@@ -2,14 +2,14 @@
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
-using ClrCounters;
 using Microsoft.Diagnostics.Tracing.Session;
+using Shared;
 
 namespace GcLog
 {
     public class EtwGcLog : GcLogBase
     {
-        // TODO: don't forget to update the header if you are adding more columns 
+        // TODO: don't forget to update the header if you are adding more columns
         private const string Header =
             "StartRelativeMSec,Number,Generation,Type,Reason,IsCompacting,SuspensionDurationInMilliSeconds,PauseDurationInMilliSeconds,FinalPauseDurationInMilliSeconds,Gen0Size,Gen1Size,Gen2Size,LOHSize,ObjGen0Before,ObjGen1Before,ObjGen2Before,ObjLOHBefore,ObjGen0After,ObjGen1After,ObjGen2After,ObjLOHAfter";
 
