@@ -1046,7 +1046,7 @@ namespace Shared
                 info.ProcessID,
                 info.AllocationAmount,
                 info.AllocationAmount64,
-                info.AllocationKind == GCAllocationKind.Large,
+                info.AllocationKind,
                 info.TypeName,
                 info.HeapIndex,
                 info.Address

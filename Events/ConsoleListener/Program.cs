@@ -113,8 +113,9 @@ namespace ConsoleListener
 
         private static void OnAllocationTick(object sender, AllocationTickArgs e)
         {
-            var isLarge = e.IsLargeAlloc ? "Large" : "Small";
-            Console.WriteLine($"[{e.ProcessId,7}] a {isLarge} | {e.AllocationAmount64,12} - {e.TypeName}");
+            int k = (int)e.AllocationKind;
+            var kind =  (k == 0) ? "Small" : (k == 1) ? "Large" : "Pinned";
+            Console.WriteLine($"[{e.ProcessId,7}] {kind, 7} | {e.AllocationAmount64,9} - {e.TypeName}");
         }
     }
 }

@@ -292,6 +292,15 @@ int wmain(int argc, wchar_t* argv[])
     std::getline(std::cin, line);
     std::cout << "Stopping session\n\n";
     gcdump.StopDump();
+
+
+    GcDumpSession gcdump2(pid);
+    gcdump2.TriggerDump();
+
+    std::cout << "Press ENTER to stop gcdump...\n\n";
+    std::getline(std::cin, line);
+    std::cout << "Stopping session\n\n";
+    gcdump2.StopDump();
     //------------------------------------------------------------------
 
 
