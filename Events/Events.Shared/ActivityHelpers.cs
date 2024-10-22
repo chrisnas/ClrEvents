@@ -184,7 +184,7 @@ public static class ActivityHelpers
 
             // FIX: there is a special case for a value < 4096/0xFFF where the encoder made a mistake
             // It is encoded with 1 nibble + 1 byte + 1 byte that contains 0 (hence stopping the parsing)
-            if ((value >= 0xFF) && (value < 0xFFF) && (bytePtr + 1 < endPtr) && (bytePtr[0] == 0) && (bytePtr[1] != 0))
+            if ((value > 0xFF) && (value <= 0xFFF) && (bytePtr + 1 < endPtr) && (bytePtr[0] == 0) && (bytePtr[1] != 0))
             {
                 bytePtr++;  // Advance past the 00 byte
             }
@@ -335,7 +335,7 @@ public static class ActivityHelpers
                     //          with NumberListCodes.MultiByte1 followed by the 4 high order bits of the id
                     //      the 00 byte was due to the fact that the "id >>= 8;" line was leading to id = 0
                     //      that was stored in the additional unneeded byte
-                    len = 1;
+                    //len = 1;
 
                     id &= 0xFF;     // Now we only want the low order bits.
                 }
