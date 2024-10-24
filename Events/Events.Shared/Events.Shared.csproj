@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Platforms>AnyCPU</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Shared</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

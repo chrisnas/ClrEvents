@@ -57,6 +57,13 @@ namespace Shared
             return value;
         }
 
+        public Int64 GetInt64()
+        {
+            Int64 value = BitConverter.ToInt64(_payload, _pos);
+            _pos += sizeof(UInt64);
+            return value;
+        }
+
         public double GetDouble()
         {
             double value = BitConverter.ToDouble(_payload, _pos);

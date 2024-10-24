@@ -14,6 +14,7 @@ namespace Shared
 {
     public class ClrEventsManager
     {
+        private bool _isLogging;
         private readonly int _processId;
         private readonly TypesInfo _types;
         private readonly ContentionInfoStore _contentionStore;
@@ -22,6 +23,7 @@ namespace Shared
         private TplEtwProviderTraceEventParser _TplParser;
 
 
+        // CLR events
         public event EventHandler<ExceptionArgs> FirstChanceException;
         public event EventHandler<FinalizeArgs> Finalize;
         public event EventHandler<ContentionArgs> Contention;
@@ -29,20 +31,51 @@ namespace Shared
         public event EventHandler<GarbageCollectionArgs> GarbageCollection;
         public event EventHandler<AllocationTickArgs> AllocationTick;
 
+        // network events
+        public event EventHandler<HandshakeStartEventArgs> HandshakeStart;
+        public event EventHandler<HandshakeStopEventArgs> HandshakeStop;
+        public event EventHandler<HandshakeFailedEventArgs> HandshakeFailed;
+        public event EventHandler<ResolutionStartEventArgs> DnsResolutionStart;
+        public event EventHandler<DnsEventArgs> DnsResolutionStop;
+        public event EventHandler<DnsEventArgs> DnsResolutionFailed;
+        public event EventHandler<SocketEventArgs> SocketConnectStart;
+        public event EventHandler<SocketEventArgs> SocketConnectStop;
+        public event EventHandler<SocketEventArgs> SocketConnectFailed;
+        public event EventHandler<SocketEventArgs> SocketAcceptStart;
+        public event EventHandler<SocketEventArgs> SocketAcceptStop;
+        public event EventHandler<SocketEventArgs> SocketAcceptFailed;
+        public event EventHandler<HttpRequestStartEventArgs> HttpRequestStart;
+        public event EventHandler<HttpRequestStopEventArgs> HttpRequestStop;
+        public event EventHandler<HttpRequestFailedEventArgs> HttpRequestFailed;
+        public event EventHandler<HttpRequestFailedEventArgs> HttpRequestFailedDetailed;
+        public event EventHandler<HttpConnectionEstablishedArgs> HttpRequestEstablished;
+        public event EventHandler<HttpRequestWithConnectionIdEventArgs> HttpRequestConnectionClosed;
+        public event EventHandler<HttpRequestLeftQueueEventArgs> HttpRequestLeftQueue;
+        public event EventHandler<HttpRequestWithConnectionIdEventArgs> HttpRequestHeaderStart;
+        public event EventHandler<EventPipeBaseArgs> HttpRequestHeaderStop;
+        public event EventHandler<EventPipeBaseArgs> HttpRequestContentStart;
+        public event EventHandler<HttpRequestStatusEventArgs> HttpRequestContentStop;
+        public event EventHandler<EventPipeBaseArgs> HttpResponseHeaderStart;
+        public event EventHandler<HttpRequestStatusEventArgs> HttpResponseHeaderStop;
+        public event EventHandler<EventPipeBaseArgs> HttpResponseContentStart;
+        public event EventHandler<EventPipeBaseArgs> HttpResponseContentStop;
+        public event EventHandler<HttpRedirectEventArgs> HttpRedirect;
+
 
         // constructor for EventPipe traces
-        public ClrEventsManager(int processId, EventFilter filter)
+        public ClrEventsManager(int processId, EventFilter filter, bool isLogging = false)
         {
             _processId = processId;
             _types = new TypesInfo();
             _contentionStore = new ContentionInfoStore();
             _contentionStore.AddProcess(processId);
             _filter = filter;
+            _isLogging = isLogging;
         }
 
         // constructor for TraceEvent + ETW traces
-        public ClrEventsManager(TraceEventSession session, int processId, EventFilter filter)
-            : this(processId, filter)
+        public ClrEventsManager(TraceEventSession session, int processId, EventFilter filter, bool isLogging = false)
+            : this(processId, filter, isLogging)
         {
             if (session == null)
             {
@@ -124,7 +157,7 @@ namespace Shared
                     eventLevel: EventLevel.Verbose),
 
                 new Provider(
-                    name: "System.Threading.Tasks.TplEventSource",
+                    name: "System.Threading.Tasks.TplEventSource",      //   V-- this one is required to get the network events ActivityId
                     keywords: (ulong)(1 + 2 + 4 + 8 + 0x10 + 0x20 + 0x40 + 0x80 + 0x100),
                     eventLevel: EventLevel.Verbose),
 
@@ -312,14 +345,17 @@ namespace Shared
                 return;
             }
 
-            //Console.WriteLine($"{data.ProcessID,7} > {data.ActivityID}  ({data.ProviderName,16} - {(int)data.Keywords,8:x}) ___[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName}");
+            //WriteLogLine($"{data.ProcessID,7} > {data.ActivityID}  ({data.ProviderName,16} - {(int)data.Keywords,8:x}) ___[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName}");
 
-            //Console.WriteLine($"{data.ActivityID}  ({data.ProviderName,16} - {(int)data.Keywords,4:x}) [{(int)data.Opcode,2:x} | {data.OpcodeName,6}] {data.EventName}");
+            //WriteLogLine($"{data.ActivityID}  ({data.ProviderName,16} - {(int)data.Keywords,4:x}) [{(int)data.Opcode,2:x} | {data.OpcodeName,6}] {data.EventName}");
 
-            //Console.WriteLine();
+            //WriteLogLine();
 
-            //Console.Write($"{data.ThreadID,6} | {data.ActivityID,16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
-            Console.Write($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+            //WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+
+            // show the path corresponding to the ActivityID
+            WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+
 
             // NOTE: the fields names array is always empty  :^(
             //var fields = data.PayloadNames;
@@ -329,9 +365,9 @@ namespace Shared
             //}
             //foreach (var field in fields)
             //{
-            //    Console.WriteLine($"   {field}");
+            //    WriteLogLine($"   {field}");
             //}
-            //Console.WriteLine();
+            //WriteLogLine();
 
             // NOTE: not event better with dynamic members
             //var fields = data.GetDynamicMemberNames().ToArray();
@@ -341,11 +377,21 @@ namespace Shared
             //}
             //foreach (var field in fields)
             //{
-            //    Console.WriteLine($"   {field} = {data.PayloadByName(field)}");
+            //    WriteLogLine($"   {field} = {data.PayloadByName(field)}");
             //}
-            //Console.WriteLine();
+            //WriteLogLine();
 
-            ParseEvent(data.ProviderGuid, data.TaskName, (Int64)data.Keywords, (UInt16)data.ID, data.EventData());
+            ParseEvent(
+                data.TimeStamp,
+                data.ThreadID,
+                data.ActivityID,
+                data.RelatedActivityID,
+                data.ProviderGuid,
+                data.TaskName,
+                (Int64)data.Keywords,
+                (UInt16)data.ID,
+                data.EventData()
+                );
         }
 
 
@@ -354,129 +400,116 @@ namespace Shared
         private static Guid SocketEventSourceProviderGuid = Guid.Parse("d5b2e7d4-b6ec-50ae-7cde-af89427ad21f");
         private static Guid HttpEventSourceProviderGuid = Guid.Parse("d30b5633-7ef1-5485-b4e0-94979b102068");
 
-        private void ParseEvent(Guid providerGuid, string taskName, Int64 keywords, UInt16 id, byte[] eventData)
+        private void ParseEvent(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            Guid providerGuid,
+            string taskName,
+            Int64 keywords,
+            UInt16 id,
+            byte[] eventData
+            )
         {
             if (providerGuid == NetSecurityEventSourceProviderGuid)
             {
-                HandleNetSecurityEvent(id, taskName, eventData);
+                HandleNetSecurityEvent(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
             }
             else
             if (providerGuid == DnsEventSourceProviderGuid)
             {
-                HandleDnsEvent(id, taskName, eventData);
+                HandleDnsEvent(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
             }
             else
             if (providerGuid == SocketEventSourceProviderGuid)
             {
-                HandleSocketEvent(id, taskName, eventData);
+                HandleSocketEvent(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
             }
             else
             if (providerGuid == HttpEventSourceProviderGuid)
             {
-                HandleHttpEvent(id, taskName, eventData);
+                HandleHttpEvent(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
             }
             else
             {
-                Console.WriteLine();
+                WriteLogLine();
             }
         }
 
-        private void HandleNetSecurityEvent(ushort id, string taskName, byte[] eventData)
+        private void HandleNetSecurityEvent(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            ushort id,
+            string taskName,
+            byte[] eventData
+            )
         {
             switch (id)
             {
                 case 1: // HandshakeStart
-                    OnHandshakeStart(eventData);
+                    OnHandshakeStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 2: // HandshakeStop
-                    OnHandshakeStop(eventData);
+                    OnHandshakeStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 3: // HandshakeFailed
-                    OnHandshakeFailed(eventData);
+                    OnHandshakeFailed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 default:
-                    Console.WriteLine();
+                    WriteLogLine();
                     break;
             }
         }
 
-        private void OnHandshakeStart(byte[] eventData)
+        private void OnHandshakeStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("HandshakeStart");
+            WriteLogLine("HandshakeStart");
 
             // bool IsServer
             // string targetHost
             EventSourcePayload payload = new EventSourcePayload(eventData);
             bool isServer = payload.GetUInt32() != 0;  // bool is serialized as a UInt32
             var targetHost = payload.GetString();
-            Console.WriteLine($"    SEC|> {targetHost} - isServer = {isServer}");
+            WriteLogLine($"    SEC|> {targetHost} - isServer = {isServer}");
+
+            HandshakeStart?.Invoke(this, new HandshakeStartEventArgs(timestamp, threadId, activityId, relatedActivityId, isServer, targetHost));
         }
 
-        //
-        // Summary:
-        //     Defines the possible versions of System.Security.Authentication.SslProtocols.
-        [Flags]
-        public enum SslProtocolsForEvents
+        private void OnHandshakeStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            //
-            // Summary:
-            //     Allows the operating system to choose the best protocol to use, and to block
-            //     protocols that are not secure. Unless your app has a specific reason not to,
-            //     you should use this field.
-            None = 0,
-            //
-            // Summary:
-            //     Specifies the SSL 2.0 protocol. SSL 2.0 has been superseded by the TLS protocol
-            //     and is provided for backward compatibility only.
-            Ssl2 = 12,
-            //
-            // Summary:
-            //     Specifies the SSL 3.0 protocol. SSL 3.0 has been superseded by the TLS protocol
-            //     and is provided for backward compatibility only.
-            Ssl3 = 48,
-            //
-            // Summary:
-            //     Specifies the TLS 1.0 security protocol. TLS 1.0 is provided for backward compatibility
-            //     only. The TLS protocol is defined in IETF RFC 2246. This member is obsolete starting
-            //     in .NET 7.
-            Tls = 192,
-            //
-            // Summary:
-            //     Use None instead of Default. Default permits only the Secure Sockets Layer (SSL)
-            //     3.0 or Transport Layer Security (TLS) 1.0 protocols to be negotiated, and those
-            //     options are now considered obsolete. Consequently, Default is not allowed in
-            //     many organizations. Despite the name of this field, System.Net.Security.SslStream
-            //     does not use it as a default except under special circumstances.
-            Default = 240,
-            //
-            // Summary:
-            //     Specifies the TLS 1.1 security protocol. The TLS protocol is defined in IETF
-            //     RFC 4346. This member is obsolete starting in .NET 7.
-            Tls11 = 768,
-            //
-            // Summary:
-            //     Specifies the TLS 1.2 security protocol. The TLS protocol is defined in IETF
-            //     RFC 5246.
-            Tls12 = 3072,
-            //
-            // Summary:
-            //     Specifies the TLS 1.3 security protocol. The TLS protocol is defined in IETF
-            //     RFC 8446.
-            Tls13 = 12288
-        }
-
-        private void OnHandshakeStop(byte[] eventData)
-        {
-            Console.WriteLine("HandshakeStop");
+            WriteLogLine("HandshakeStop");
             // int SslProtocol
             EventSourcePayload payload = new EventSourcePayload(eventData);
             SslProtocolsForEvents protocol = (SslProtocolsForEvents)payload.GetUInt32();
-            Console.WriteLine($"      <|SEC {protocol}");
+            WriteLogLine($"      <|SEC {protocol}");
+
+             HandshakeStop?.Invoke(this, new HandshakeStopEventArgs(timestamp, threadId, activityId, relatedActivityId, protocol));
         }
 
-        private void OnHandshakeFailed(byte[] eventData)
+        private void OnHandshakeFailed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("HandshakeFailed");
+            WriteLogLine("HandshakeFailed");
             // bool IsServer
             // double elapsedMilliseconds
             // string exceptionMessage
@@ -484,193 +517,295 @@ namespace Shared
             bool isServer = payload.GetUInt32() != 0;  // bool is serialized as a UInt32
             var elapsed = payload.GetDouble();
             var message = payload.GetString();
-            Console.WriteLine($"   SECx| isServer = {isServer} - {elapsed} ms : {message}");
+            WriteLogLine($"   SECx| isServer = {isServer} - {elapsed} ms : {message}");
+
+            HandshakeFailed?.Invoke(this, new HandshakeFailedEventArgs(timestamp, threadId, activityId, relatedActivityId, elapsed, isServer, message));
         }
 
 
-        private void HandleDnsEvent(ushort id, string taskName, byte[] eventData)
+        private void HandleDnsEvent(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            ushort id,
+            string taskName,
+            byte[] eventData
+            )
         {
             switch (id)
             {
                 case 1: // ResolutionStart
-                    OnResolutionStart(eventData);
+                    OnResolutionStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 2: // ResolutionStop
-                    OnResolutionStop(eventData);
+                    OnResolutionStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 3: // ResolutionFailed
-                    OnResolutionFailed(eventData);
+                    OnResolutionFailed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 default:
-                    Console.WriteLine();
+                    WriteLogLine();
                     break;
             }
         }
 
-        private void OnResolutionStart(byte[] eventData)
+        private void OnResolutionStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ResolutionStart");
+            WriteLogLine("ResolutionStart");
             // string hostNameOrAddress
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var address = payload.GetString();
-            Console.WriteLine($"      R|> {address}");
+            WriteLogLine($"      R|> {address}");
+
+            DnsResolutionStart?.Invoke(this, new ResolutionStartEventArgs(timestamp, threadId, activityId, relatedActivityId, address));
         }
 
-        private void OnResolutionStop(byte[] eventData)
+        private void OnResolutionStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ResolutionStop");
-            Console.WriteLine($"      <|R");
+            WriteLogLine("ResolutionStop");
+            WriteLogLine($"      <|R");
+
+            DnsResolutionStop?.Invoke(this, new DnsEventArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void OnResolutionFailed(byte[] eventData)
+        private void OnResolutionFailed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ResolutionFailed");
-            Console.WriteLine($"    Rx|");
+            WriteLogLine("ResolutionFailed");
+            WriteLogLine($"    Rx|");
+
+            DnsResolutionFailed?.Invoke(this, new DnsEventArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void HandleSocketEvent(ushort id, string taskName, byte[] eventData)
+        private void HandleSocketEvent(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            ushort id,
+            string taskName,
+            byte[] eventData
+            )
         {
             switch (id)
             {
                 case 1: // ConnectStart
-                    OnConnectStart(eventData);
+                    OnConnectStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 2: // ConnectStop
-                    OnConnectStop(eventData);
+                    OnConnectStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 3: // ConnectFailed
-                    OnConnectFailed(eventData);
+                    OnConnectFailed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 4: // AcceptStart
-                    OnAcceptStart(eventData);
+                    OnAcceptStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 5: // AcceptStop
-                    OnAcceptStop(eventData);
+                    OnAcceptStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 6: // AcceptFailed
-                    OnAcceptFailed(eventData);
+                    OnAcceptFailed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 default:
-                    Console.WriteLine();
+                    WriteLogLine();
                     break;
             }
         }
 
-        private void OnConnectStart(byte[] eventData)
+        private void OnConnectStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ConnectStart");
+            WriteLogLine("ConnectStart");
 
             // string address
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var address = payload.GetString();
-            Console.WriteLine($"      S|> {address}");
+            WriteLogLine($"      S|> {address}");
+
+            SocketConnectStart?.Invoke(this, new SocketEventArgs(timestamp, threadId, activityId, relatedActivityId, address));
         }
 
-        private void OnConnectStop(byte[] eventData)
+        private void OnConnectStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ConnectStop");
-            Console.WriteLine($"      <|S");
+            WriteLogLine("ConnectStop");
+            WriteLogLine($"      <|S");
+
+            SocketConnectStop?.Invoke(this, new SocketEventArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void OnConnectFailed(byte[] eventData)
+        private void OnConnectFailed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ConnectFailed");
+            WriteLogLine("ConnectFailed");
             // string exception message
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var message = payload.GetString();
 
-            Console.WriteLine($"    SCx| {message}");
+            WriteLogLine($"    SCx| {message}");
+
+            SocketConnectFailed?.Invoke(this, new SocketEventArgs(timestamp, threadId, activityId, relatedActivityId, message));
         }
 
-        private void OnAcceptStart(byte[] eventData)
+        private void OnAcceptStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("AcceptStart");
+            WriteLogLine("AcceptStart");
             // string address
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var address = payload.GetString();
-            Console.WriteLine($"     SA|> {address}");
+            WriteLogLine($"     SA|> {address}");
+
+            SocketAcceptStart?.Invoke(this, new SocketEventArgs(timestamp, threadId, activityId, relatedActivityId, address));
         }
 
-        private void OnAcceptStop(byte[] eventData)
+        private void OnAcceptStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("AcceptStop");
-            Console.WriteLine($"      <|SA");
+            WriteLogLine("AcceptStop");
+            WriteLogLine($"      <|SA");
+
+            SocketAcceptStop?.Invoke(this, new SocketEventArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void OnAcceptFailed(byte[] eventData)
+        private void OnAcceptFailed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("AcceptFailed");
+            WriteLogLine("AcceptFailed");
             // string exception message
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var message = payload.GetString();
-            Console.WriteLine($"    SAx|> {message}");
+            WriteLogLine($"    SAx|> {message}");
+
+            SocketAcceptFailed?.Invoke(this, new SocketEventArgs(timestamp, threadId, activityId, relatedActivityId, message));
         }
 
-        private Dictionary<Guid, String> _states = new Dictionary<Guid, string>();
-
-        private void HandleHttpEvent(ushort id, string taskName, byte[] eventData)
+        private void HandleHttpEvent(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            ushort id,
+            string taskName,
+            byte[] eventData
+            )
         {
             switch(id)
             {
                 case 1: // RequestStart
-                    OnRequestStart(eventData);
+                    OnRequestStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 2: // RequestStop
-                    OnRequestStop(eventData);
+                    OnRequestStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 3: // RequestFailed
-                    OnRequestFailed(eventData);
+                    OnRequestFailed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 4: // ConnectionEstablished
-                    OnConnectionEstablished(eventData);
+                    OnConnectionEstablished(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
-                case 5: // ConnectionClosed --
-                    Console.WriteLine("ConnectionClosed");
+                case 5: // ConnectionClosed
+                    OnConnectionClosed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 6: // RequestLeftQueue
-                    OnRequestLeftQueue(eventData);
+                    OnRequestLeftQueue(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 7: // RequestHeadersStart
-                    OnRequestHeadersStart(eventData);
+                    OnRequestHeadersStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 8: // RequestHeadersStop
-                    OnRequestHeadersStop(eventData);
+                    OnRequestHeadersStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
-                case 9: // RequestContentStart --
-                    Console.WriteLine("RequestContentStart");
+                case 9: // RequestContentStart
+                    OnRequestContentStart(timestamp, threadId, activityId, relatedActivityId);
                     break;
-                case 10: // RequestContentStop --
-                    Console.WriteLine("RequestContentStop");
+                case 10: // RequestContentStop
+                    OnRequestContentStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 11: // ResponseHeadersStart
-                    OnResponseHeadersStart(eventData);
+                    OnResponseHeadersStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 12: // ResponseHeadersStop
-                    OnResponseHeadersStop(eventData);
+                    OnResponseHeadersStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 13: // ResponseContentStart
-                    OnResponseContentStart(eventData);
+                    OnResponseContentStart(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 14: // ResponseContentStop
-                    OnResponseContentStop(eventData);
+                    OnResponseContentStop(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
-                case 15: // RequestFailedDetailed --
-                    OnRequestFailedDetailed(eventData);
+                case 15: // RequestFailedDetailed
+                    OnRequestFailedDetailed(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 case 16: // Redirect
-                    OnRedirect(eventData);
+                    OnRedirect(timestamp, threadId, activityId, relatedActivityId, eventData);
                     break;
                 default:
-                    Console.WriteLine();
+                    WriteLogLine();
                     break;
             }
         }
 
-        private void OnRequestStart(byte[] eventData)
+        private void OnRequestStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
             //DumpBytes(eventData);
 
-            Console.WriteLine("RequestStart");
+            WriteLogLine("RequestStart");
             // string scheme
             // string host
             // int port
@@ -689,49 +824,78 @@ namespace Shared
 
             if (port != 0)
             {
-                Console.WriteLine($"       |> {scheme}://{host}:{port}{path}");
+                WriteLogLine($"       |> {scheme}://{host}:{port}{path}");
             }
             else
             {
-                Console.WriteLine($"       |> {scheme}://{host}{path}");
+                WriteLogLine($"       |> {scheme}://{host}{path}");
             }
+
+            HttpRequestStart?.Invoke(this, new HttpRequestStartEventArgs(timestamp, threadId, activityId, relatedActivityId, scheme, host, port, path, versionMajor, versionMinor));
         }
 
-        private void OnRequestStop(byte[] eventData)
+        private void OnRequestStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            //DumpBytes(eventData);
-
-            Console.WriteLine("RequestStop");
+            WriteLogLine("RequestStop");
             // int statusCode
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var statusCode = payload.GetUInt32();
 
-            Console.WriteLine($"{statusCode,5} <|");  // TODO: how to get the original request?  Could it be based on the thread ID?
+            WriteLogLine($"{statusCode,5} <|");
+
+            HttpRequestStop?.Invoke(this, new HttpRequestStopEventArgs(timestamp, threadId, activityId, relatedActivityId, statusCode));
         }
 
-        private void OnRequestFailed(byte[] eventData)
+        private void OnRequestFailed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("RequestFailed");
+            WriteLogLine("RequestFailed");
             // string exception message
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var message = payload.GetString();
 
-            Console.WriteLine($"      x| {message}");
+            WriteLogLine($"      x| {message}");
+
+            HttpRequestFailed?.Invoke(this, new HttpRequestFailedEventArgs(timestamp, threadId, activityId, relatedActivityId, message));
         }
 
-        private void OnRequestFailedDetailed(byte[] eventData)
+        private void OnRequestFailedDetailed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("RequestFailedDetailed");
+            WriteLogLine("RequestFailedDetailed");
             // string exception message
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var message = payload.GetString();
 
-            Console.WriteLine($"      x| {message}");
+            WriteLogLine($"      x| {message}");
+            HttpRequestFailedDetailed?.Invoke(this, new HttpRequestFailedEventArgs(timestamp, threadId, activityId, relatedActivityId, message));
         }
 
-        private void OnConnectionEstablished(byte[] eventData)
+        private void OnConnectionEstablished(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ConnectionEstablished");
+            WriteLogLine("ConnectionEstablished");
             // byte versionMajor
             // byte versionMinor
             // long connectionId
@@ -742,7 +906,7 @@ namespace Shared
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var versionMajor = payload.GetByte();
             var versionMinor = payload.GetByte();
-            var connectionId = payload.GetUInt64();
+            var connectionId = payload.GetInt64();
             var scheme = payload.GetString();
             var host = payload.GetString();
             var port = payload.GetUInt32();
@@ -752,30 +916,61 @@ namespace Shared
             {
                 if (path.StartsWith("/"))
                 {
-                    Console.WriteLine($"       |= [{connectionId,3}] {scheme}://{host}:{port}{path}");
+                    WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}:{port}{path}");
                 }
                 else
                 {
-                    Console.WriteLine($"       |= [{connectionId,3}] {scheme}://{host}:{port}/{path}");
+                    WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}:{port}/{path}");
                 }
             }
             else
             {
-                Console.WriteLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
+                WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
                 if (path.StartsWith("/"))
                 {
-                    Console.WriteLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
+                    WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
                 }
                 else
                 {
-                    Console.WriteLine($"       |= [{connectionId,3}] {scheme}://{host}/{path}");
+                    WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}/{path}");
                 }
             }
+
+            HttpRequestEstablished?.Invoke(this,
+                new HttpConnectionEstablishedArgs(
+                        timestamp, threadId, activityId, relatedActivityId,
+                        scheme, host, port, path, versionMajor, versionMinor, connectionId
+                        )
+                );
         }
 
-        private void OnRequestLeftQueue(byte[] eventData)
+        private void OnConnectionClosed(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("RequestLeftQueue");
+            WriteLogLine("ConnectionClosed");
+            // long connectionId
+            EventSourcePayload payload = new EventSourcePayload(eventData);
+            var connectionId = payload.GetInt64();
+
+            WriteLogLine($"       |< [{connectionId,3}]");
+
+            HttpRequestConnectionClosed?.Invoke(this, new HttpRequestWithConnectionIdEventArgs(timestamp, threadId, activityId, relatedActivityId, connectionId));
+        }
+
+        private void OnRequestLeftQueue(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
+        {
+            WriteLogLine("RequestLeftQueue");
             // double timeOnQueue
             // byte versionMajor
             // byte versionMinor
@@ -784,65 +979,158 @@ namespace Shared
             var versionMajor = payload.GetByte();
             var versionMinor = payload.GetByte();
 
-            Console.WriteLine($"       |  wait {timeOnQueue} ms in queue");
+            WriteLogLine($"       |  wait {timeOnQueue} ms in queue");
+
+            HttpRequestLeftQueue?.Invoke(
+                this,
+                new HttpRequestLeftQueueEventArgs(
+                        timestamp, threadId, activityId, relatedActivityId, timeOnQueue, versionMajor, versionMajor
+                        )
+                );
         }
 
-        private void OnRequestHeadersStart(byte[] eventData)
+        private void OnRequestHeadersStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("RequestHeadersStart");
+            WriteLogLine("RequestHeadersStart");
             // long connectionId
             EventSourcePayload payload = new EventSourcePayload(eventData);
-            var connectionId = payload.GetUInt64();
+            var connectionId = payload.GetInt64();
 
-            Console.WriteLine($"       |QH[{connectionId,3}]");
+            WriteLogLine($"       |QH[{connectionId,3}]");
+
+            HttpRequestHeaderStart?.Invoke(this, new HttpRequestWithConnectionIdEventArgs(timestamp, threadId, activityId, relatedActivityId, connectionId));
         }
 
-        private void OnRequestHeadersStop(byte[] eventData)
+        private void OnRequestHeadersStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("RequestHeadersStop");
-            Console.WriteLine($"      <|QH");
+            WriteLogLine("RequestHeadersStop");
+            WriteLogLine($"      <|QH");
+
+            HttpRequestHeaderStop?.Invoke(this, new EventPipeBaseArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void OnResponseHeadersStart(byte[] eventData)
+        private void OnRequestContentStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId
+            )
         {
-            Console.WriteLine("ResponseHeadersStart");
-            Console.WriteLine($"       |RH>");
+            WriteLogLine("RequestContentStart");
+
+            HttpRequestContentStart?.Invoke(this, new EventPipeBaseArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void OnResponseHeadersStop(byte[] eventData)
+        private void OnRequestContentStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ResponseHeadersStop");
+            WriteLogLine("RequestContentStop");
             // int statusCode
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var statusCode = payload.GetUInt32();
 
-            Console.WriteLine($"{statusCode,5} <|RH");
+            WriteLogLine($"{statusCode,5} <|RC");
+
+            HttpRequestContentStop?.Invoke(this, new HttpRequestStatusEventArgs(timestamp, threadId, activityId, relatedActivityId, statusCode));
         }
 
-        private void OnResponseContentStart(byte[] eventData)
+        private void OnResponseHeadersStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ResponseContentStart");
-            Console.WriteLine($"       |RC>");
+            WriteLogLine("ResponseHeadersStart");
+            WriteLogLine($"       |RH>");
+
+            HttpResponseHeaderStart?.Invoke(this, new EventPipeBaseArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 
-        private void OnResponseContentStop(byte[] eventData)
+        private void OnResponseHeadersStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
-            Console.WriteLine("ResponseContentStop");
-            Console.WriteLine($"      <|RC");
+            WriteLogLine("ResponseHeadersStop");
+            // int statusCode
+            EventSourcePayload payload = new EventSourcePayload(eventData);
+            var statusCode = payload.GetUInt32();
+
+            WriteLogLine($"{statusCode,5} <|RH");
+
+            HttpResponseHeaderStop?.Invoke(this, new HttpRequestStatusEventArgs(timestamp, threadId, activityId, relatedActivityId, statusCode));
         }
 
-        private void OnRedirect(byte[] eventData)
+        private void OnResponseContentStart(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
+        {
+            WriteLogLine("ResponseContentStart");
+            WriteLogLine($"       |RC>");
+
+            HttpResponseContentStart?.Invoke(this, new EventPipeBaseArgs(timestamp, threadId, activityId, relatedActivityId));
+        }
+
+        private void OnResponseContentStop(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
+        {
+            WriteLogLine("ResponseContentStop");
+            WriteLogLine($"      <|RC");
+
+            HttpResponseContentStop?.Invoke(this, new EventPipeBaseArgs(timestamp, threadId, activityId, relatedActivityId));
+        }
+
+        private void OnRedirect(
+            DateTime timestamp,
+            int threadId,
+            Guid activityId,
+            Guid relatedActivityId,
+            byte[] eventData
+            )
         {
             // string redirectUrl
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var redirectUrl = payload.GetString();
-            Console.WriteLine($"      R|> {redirectUrl}");
+            WriteLogLine($"      R|> {redirectUrl}");
+
+            HttpRedirect?.Invoke(this, new HttpRedirectEventArgs(timestamp, threadId, activityId, relatedActivityId, redirectUrl));
         }
 
         private void DumpBytes(byte[] eventData)
         {
-            Console.WriteLine($"  #bytes = {eventData.Length}");
-            //Console.WriteLine(BitConverter.ToString(eventData));
+            WriteLogLine($"  #bytes = {eventData.Length}");
+            //WriteLogLine(BitConverter.ToString(eventData));
 
             StringBuilder builder = new StringBuilder(16);
             int i = 0;
@@ -850,11 +1138,11 @@ namespace Shared
             {
                 if (i % 16 == 0)
                 {
-                    Console.Write("  | ");
+                    WriteLog("  | ");
                 }
 
                 // write each byte as hexadecimal value followed by possible UTF16 characters
-                Console.Write($"{eventData[i]:X2} ");
+                WriteLog($"{eventData[i]:X2} ");
 
                 if ((i % 2 == 0) && (i + 1 < eventData.Length))
                 {
@@ -876,8 +1164,8 @@ namespace Shared
 
                 if ((i + 1) % 16 == 0)
                 {
-                    Console.Write(" - ");
-                    Console.WriteLine(builder);
+                    WriteLog(" - ");
+                    WriteLogLine(builder.ToString());
                     builder.Clear();
                 }
             }
@@ -886,9 +1174,9 @@ namespace Shared
             if (builder.Length > 0)
             {
                 var remaining = i % 16;
-                Console.Write(new string(' ', (16 - remaining) * 3));
-                Console.Write(" - ");
-                Console.WriteLine(builder);
+                WriteLog(new string(' ', (16 - remaining) * 3));
+                WriteLog(" - ");
+                WriteLogLine(builder.ToString());
             }
         }
 
@@ -1037,7 +1325,6 @@ namespace Shared
             return sizes;
         }
 
-
         private void NotifyAllocationTick(GCAllocationTickTraceData info)
         {
             var listeners = AllocationTick;
@@ -1051,6 +1338,29 @@ namespace Shared
                 info.HeapIndex,
                 info.Address
             ));
+        }
+
+        private void WriteLog(string text)
+        {
+            if (_isLogging)
+            {
+                Console.Write(text);
+            }
+        }
+
+        private void WriteLogLine(string line = null)
+        {
+            if (_isLogging)
+            {
+                if (line != null)
+                {
+                    Console.WriteLine(line);
+                }
+                else
+                {
+                    Console.WriteLine();
+                }
+            }
         }
     }
 }

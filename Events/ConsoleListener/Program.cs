@@ -57,7 +57,7 @@ namespace ConsoleListener
             {
                 // don't want allocation ticks by default because it might have a noticeable impact
                 //ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
-                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All);
+                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All, isLogging:true);
                 RegisterEventHandlers(manager);
 
                 // this is a blocking call until the session is disposed
