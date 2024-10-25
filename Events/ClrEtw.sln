@@ -27,9 +27,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "pinfo", "pinfo\pinfo.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.Diagnostics.NETCore.Client", "Microsoft.Diagnostics.NETCore.Client\Microsoft.Diagnostics.NETCore.Client.csproj", "{39ABF5D5-C102-4259-8FE4-3D87E365D16A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-activity", "dotnet-activity\dotnet-activity.csproj", "{BCECF2D3-FAA8-41DF-8FD0-00C8411F6B42}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "dotnet-activity", "dotnet-activity\dotnet-activity.csproj", "{BCECF2D3-FAA8-41DF-8FD0-00C8411F6B42}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Events.Shared", "Events.Shared\Events.Shared.csproj", "{14C03B84-86B0-49D6-91AA-8713C37D95C7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-http", "dotnet-http\dotnet-http.csproj", "{E9F97376-BEDA-4310-8607-3F5002B6C485}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -208,6 +210,18 @@ Global
 		{14C03B84-86B0-49D6-91AA-8713C37D95C7}.Release|x64.Build.0 = Release|x64
 		{14C03B84-86B0-49D6-91AA-8713C37D95C7}.Release|x86.ActiveCfg = Release|Any CPU
 		{14C03B84-86B0-49D6-91AA-8713C37D95C7}.Release|x86.Build.0 = Release|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Debug|x64.Build.0 = Debug|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Debug|x86.Build.0 = Debug|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Release|x64.ActiveCfg = Release|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Release|x64.Build.0 = Release|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Release|x86.ActiveCfg = Release|Any CPU
+		{E9F97376-BEDA-4310-8607-3F5002B6C485}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -879,7 +879,7 @@ namespace Shared
             )
         {
             WriteLogLine("RequestFailedDetailed");
-            // string exception message
+            // string exception message + call stack
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var message = payload.GetString();
 

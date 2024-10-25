@@ -188,14 +188,14 @@ namespace Shared
 
     public class HttpRequestFailedEventArgs : EventPipeBaseArgs
     {
-        public HttpRequestFailedEventArgs(DateTime timestamp, int threadId, Guid activityId, Guid relatedActivityId, string messageWithException)
+        public HttpRequestFailedEventArgs(DateTime timestamp, int threadId, Guid activityId, Guid relatedActivityId, string text)
         :
         base(timestamp, threadId, activityId, relatedActivityId)
         {
-            MessageWithException = messageWithException;
+            Text = text;
         }
 
-        public string MessageWithException { get; set; }
+        public string Text { get; set; }
     }
 
     public class HttpConnectionEstablishedArgs : EventPipeBaseArgs

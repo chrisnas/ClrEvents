@@ -11,6 +11,7 @@ namespace Shared
         ThreadStarvation  = 1 << 4,
         GC                = 1 << 5,
         AllocationTick    = 1 << 6,
-        All               = ~(-1 << 7)
+        Network           = 1 << 7,
+        All               = ~(-1 << 8)
     }
 }
