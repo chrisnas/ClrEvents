@@ -126,7 +126,6 @@ namespace Shared
         public const EventKeywords AsyncMethod = (EventKeywords)0x100;
 
 
-
         private static IReadOnlyCollection<Provider> GetProviders()
         {
             var providers = new Provider[]
@@ -237,31 +236,31 @@ namespace Shared
 
         private void RegisterListeners(TraceEventDispatcher source)
         {
-            //if ((_filter & EventFilter.Exception) == EventFilter.Exception)
-            //{
-            //    // get exceptions
-            //    source.Clr.ExceptionStart += OnExceptionStart;
-            //}
+            if ((_filter & EventFilter.Exception) == EventFilter.Exception)
+            {
+                // get exceptions
+                source.Clr.ExceptionStart += OnExceptionStart;
+            }
 
-            //if ((_filter & EventFilter.Finalizer) == EventFilter.Finalizer)
-            //{
-            //    // get finalizers
-            //    source.Clr.TypeBulkType += OnTypeBulkType;
-            //    source.Clr.GCFinalizeObject += OnGCFinalizeObject;
-            //}
+            if ((_filter & EventFilter.Finalizer) == EventFilter.Finalizer)
+            {
+                // get finalizers
+                source.Clr.TypeBulkType += OnTypeBulkType;
+                source.Clr.GCFinalizeObject += OnGCFinalizeObject;
+            }
 
-            //if ((_filter & EventFilter.Contention) == EventFilter.Contention)
-            //{
-            //    // get thread contention time
-            //    source.Clr.ContentionStart += OnContentionStart;
-            //    source.Clr.ContentionStop += OnContentionStop;
-            //}
+            if ((_filter & EventFilter.Contention) == EventFilter.Contention)
+            {
+                // get thread contention time
+                source.Clr.ContentionStart += OnContentionStart;
+                source.Clr.ContentionStop += OnContentionStop;
+            }
 
-            //if ((_filter & EventFilter.ThreadStarvation) == EventFilter.ThreadStarvation)
-            //{
-            //    // detect ThreadPool starvation
-            //    source.Clr.ThreadPoolWorkerThreadAdjustmentAdjustment += OnThreadPoolWorkerAdjustment;
-            //}
+            if ((_filter & EventFilter.ThreadStarvation) == EventFilter.ThreadStarvation)
+            {
+                // detect ThreadPool starvation
+                source.Clr.ThreadPoolWorkerThreadAdjustmentAdjustment += OnThreadPoolWorkerAdjustment;
+            }
 
             //if ((_filter & EventFilter.GC) == EventFilter.GC)
             //{
@@ -282,15 +281,18 @@ namespace Shared
 
             //}
 
-            //if ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick)
-            //{
-            //    // sample every ~100 KB of allocations
-            //    source.Clr.GCAllocationTick += OnGCAllocationTick;
-            //}
+            if ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick)
+            {
+                // sample every ~100 KB of allocations
+                source.Clr.GCAllocationTick += OnGCAllocationTick;
+            }
 
-            source.AllEvents += OnEvents;
+            if ((_filter & EventFilter.Network) == EventFilter.Network)
+            {
+                source.AllEvents += OnEvents;
+            }
 
-            // TPL events
+            // TODO: handle TPL events via the existing TraceEvent dedicated parser
             _TplParser = new TplEtwProviderTraceEventParser(source);
             _TplParser.TaskScheduledSend += OnTaskScheduledSend;
             _TplParser.TaskExecuteStart += OnTaskExecuteStart;
@@ -803,8 +805,6 @@ namespace Shared
             byte[] eventData
             )
         {
-            //DumpBytes(eventData);
-
             WriteLogLine("RequestStart");
             // string scheme
             // string host
@@ -1119,6 +1119,7 @@ namespace Shared
             byte[] eventData
             )
         {
+            WriteLogLine("Redirect");
             // string redirectUrl
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var redirectUrl = payload.GetString();
@@ -1214,7 +1215,7 @@ namespace Shared
             NotifyFinalize(data.TimeStamp, data.ProcessID, data.TypeID, _types[data.TypeID]);
         }
 
-        private void OnContentionStart(ContentionTraceData data)
+        private void OnContentionStart(ContentionStartTraceData data)
         {
             ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
             if (info == null)
@@ -1223,9 +1224,8 @@ namespace Shared
             info.TimeStamp = data.TimeStamp;
             info.ContentionStartRelativeMSec = data.TimeStampRelativeMSec;
         }
-        private void OnContentionStop(ContentionTraceData data)
-
-{
+        private void OnContentionStop(ContentionStopTraceData data)
+        {
             ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
             if (info == null)
                 return;
@@ -1236,7 +1236,9 @@ namespace Shared
                 return;
             }
 
+            // TODO: new versions of .NET are providing the duration in data.DurationNs
             var contentionDurationMSec = data.TimeStampRelativeMSec - info.ContentionStartRelativeMSec;
+
             info.ContentionStartRelativeMSec = 0;
             var isManaged = (data.ContentionFlags == ContentionFlags.Managed);
             NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, TimeSpan.FromMilliseconds(contentionDurationMSec), isManaged);

@@ -6,19 +6,20 @@
     <RootNamespace>dotnet_http</RootNamespace>
 
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>dotnet-htt</ToolCommandName>
+    <ToolCommandName>dotnet-http</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <PropertyGroup>
     <PackageId>dotnet-http</PackageId>
-    <PackageVersion>1.0.0</PackageVersion>
+    <PackageVersion>1.1.0</PackageVersion>
     <Title>dotnet-http</Title>
     <Authors>Christophe Nasarre</Authors>
     <Owners>chrisnas</Owners>
     <PackageProjectUrl>https://github.com/chrisnas/ClrEvents</PackageProjectUrl>
-    <PackageLicenseUrl>https://github.com/chrisnas/ClrEvents/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Global CLI tool to detail HTTP requests</Description>
     <PackageReleaseNotes>Initial version</PackageReleaseNotes>
     <Copyright>Copyright Christophe Nasarre $([System.DateTime]::UtcNow.ToString(yyyy))</Copyright>
@@ -26,6 +27,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\"/>
+    <None Include="LICENSE" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+    <ItemGroup>
     <ProjectReference Include="..\Events.Shared\Events.Shared.csproj" />
   </ItemGroup>
 

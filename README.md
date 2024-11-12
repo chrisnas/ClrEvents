@@ -26,9 +26,9 @@ Part 9: [Build your own .NET memory profiler in C# - allocations(1/2)](https://m
 ## Source Code
 The `Events\ClrEtw` Visual Studio solution contains different projects:
 
-1. `ClrCounters`: .NET Standard assembly to easily listen to CLR events with TraceEvent (.NET Core and Framework) or EventPipe (.NET Core only). 
+1. `Events.Shared`: .NET Standard assembly to easily listen to CLR events with TraceEvent (.NET Core and Framework) or EventPipe (.NET Core only). 
 
-2. `ConsoleListener`: Demo console application that uses 'ClrCounters' to display CLR details of a running application.
+2. `ConsoleListener`: Demo console application that uses 'Events.Shared' to display CLR details of events emitted by a running .NET application including HTTP requests.
 
 3. `NaiveListener`: Demo console application that displays raw CLR events with TraceEvent.
 
@@ -45,6 +45,10 @@ The `Events\ClrEtw` Visual Studio solution contains different projects:
 
 9. `SampledObjectAllocationProfiler`: simple memory profiler using SampledObjectAllocation(High/Low) events.
 
+10. `dotnet-activity`: tool to encode and decode event activities GUID
+
+11. `dotnet-http`: CLI tool to monitor HTTP requests live
+
 
 The `Counters\EventPipeCounters` Visual Studio solution contains different projets
 1. `Counters.RuntimeClient`: Helper classes to easily get .NET Core counters; including .csv file automatic creation.
@@ -59,5 +63,4 @@ Projects dependecies:
 - [TraceEvent](https://www.nuget.org/packages/Microsoft.Diagnostics.Tracing.TraceEvent/): C# library to listen to CLR events.
 Source code is available on [Github](https://github.com/Microsoft/perfview/tree/master/src/TraceEvent).
 
-- Microsoft.Diagnostics.Tools.RuntimeClient: unfortunately, no nuget package yet.
-So just recompiled it from [github](https://github.com/dotnet/diagnostics/tree/master/src/Microsoft.Diagnostics.Tools.RuntimeClient). 
+- Microsoft.Diagnostics.Tools.RuntimeClient: copied from [github](https://github.com/dotnet/diagnostics/tree/master/src/Microsoft.Diagnostics.Tools.RuntimeClient) because it is supporting both ETW and EventPipe. For EventPipe only, use [Microsoft.Diagnostics.NETCore.Client](https://www.nuget.org/packages/Microsoft.Diagnostics.NETCore.Client)

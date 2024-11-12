@@ -31,8 +31,8 @@ namespace dotnet_http
                 ClrEventsManager source = new ClrEventsManager(pid, EventFilter.Network, isLogging: false);
                 NetworkEventsManager networkEventsManager = new NetworkEventsManager(source, isLogging: true);
 
-                Console.WriteLine("status |     total |______wait_|       DNS |______wait_|    socket |______wait_|     HTTPS |  Queueing |  Response - Url ");
-                Console.WriteLine("-------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-------------------------------------------------");
+                Console.WriteLine("status |     total |______wait_|       DNS |______wait_|    socket |______wait_|     HTTPS |  Response - Url ");
+                Console.WriteLine("-------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-------------------------------------------------");
 
                 // this is a blocking call until the session is disposed
                 source.ProcessEvents();

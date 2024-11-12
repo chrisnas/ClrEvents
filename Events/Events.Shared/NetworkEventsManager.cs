@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace Shared
 {
@@ -26,6 +25,7 @@ namespace Shared
             source.HttpRequestStop += OnHttpRequestStop;
             source.HttpRequestFailed += OnHttpRequestFailed;
             source.HttpRequestLeftQueue += OnHttpRequestLeftQueue;
+            source.HttpRedirect += OnHttpRedirect;
 
             source.DnsResolutionStart += OnDnsResolutionStart;
             source.DnsResolutionStop += OnDnsResolutionStop;
@@ -108,15 +108,15 @@ namespace Shared
                 Console.Write($"          |           | ");
             }
 
-            // TODO: try to understand what this duration means
-            if (info.QueueingDuration > 0)
-            {
-                Console.Write($"{info.QueueingDuration,9:F3} | ");
-            }
-            else
-            {
-                Console.Write($"          | ");
-            }
+            //// TODO: try to understand what this duration means
+            //if (info.QueueingDuration > 0)
+            //{
+            //    Console.Write($"{info.QueueingDuration,9:F3} | ");
+            //}
+            //else
+            //{
+            //    Console.Write($"          | ");
+            //}
 
             if (info.ReqRespDuration > 0)
             {
@@ -150,7 +150,7 @@ namespace Shared
             }
             else
             {
-                //Console.Write($"          |           ");
+                // TODO: this should never happen
                 Console.Write($"           ");
             }
         }
@@ -162,7 +162,15 @@ namespace Shared
             {
                 Console.Write($"   {e.StatusCode,3} | {(e.Timestamp - info.StartTime).TotalMilliseconds,9:F3} | ");
                 DumpDurations(info);
-                Console.WriteLine($" - {info.Url}");
+                Console.Write($" - {info.Url}");
+                if (!string.IsNullOrEmpty(info.RedirectUrl))
+                {
+                    Console.WriteLine($" -> {info.RedirectUrl}");
+                }
+                else
+                {
+                    Console.WriteLine();
+                }
             }
             else
             {
@@ -179,7 +187,12 @@ namespace Shared
             {
                 Console.Write($"     x | {(e.Timestamp - info.StartTime).TotalMilliseconds,9:F3} | ");
                 DumpDurations(info);
-                Console.WriteLine($" - {info.Url} ~ {e.Text}");
+                Console.Write($" - {info.Url}");
+                if (!string.IsNullOrEmpty(info.RedirectUrl))
+                {
+                    Console.Write($" -> {info.RedirectUrl}");
+                }
+                Console.WriteLine($" ~ {e.Text}");
             }
             else
             {
@@ -249,6 +262,16 @@ namespace Shared
             {
                 info.QueueuingEndTime = e.Timestamp;
                 info.QueueingDuration = e.TimeOnQueue;
+            }
+        }
+
+        private void OnHttpRedirect(object sender, HttpRedirectEventArgs e)
+        {
+            // since this is an Info event, the activityID is the root
+            var root = ActivityHelpers.ActivityPathString(e.ActivityId);
+            if (_requests.TryGetValue(root, out HttpRequestInfo info))
+            {
+                info.RedirectUrl = e.RedirectUrl;
             }
         }
 
@@ -349,6 +372,7 @@ namespace Shared
 
             public string Root { get; set; }
             public string Url { get; set; }
+            public string RedirectUrl { get; set; }
             public DateTime StartTime { get; set; }
             public DateTime ReqRespStartTime { get; set; }
             public double ReqRespDuration { get; set; }
