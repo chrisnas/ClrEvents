@@ -342,6 +342,15 @@ namespace Shared
             if (data.ProviderGuid == TplEventSourceGuild)
                 return;
 
+            // skip events that are not related to network
+            if (
+                (data.ProviderGuid != NetSecurityEventSourceProviderGuid) &&
+                (data.ProviderGuid != DnsEventSourceProviderGuid) &&
+                (data.ProviderGuid != SocketEventSourceProviderGuid) &&
+                (data.ProviderGuid != HttpEventSourceProviderGuid)
+                )
+                return;
+
             if (data.ActivityID == Guid.Empty)
             {
                 return;
@@ -356,7 +365,16 @@ namespace Shared
             //WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
 
             // show the path corresponding to the ActivityID
-            WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+            // handle special ID 0 event corresponding to a message
+            if (data.ID == 0)
+            {
+                WriteLogLine($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] {data.FormattedMessage} ");
+                return;
+            }
+            else
+            {
+                WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+            }
 
 
             // NOTE: the fields names array is always empty  :^(
@@ -383,17 +401,24 @@ namespace Shared
             //}
             //WriteLogLine();
 
-            ParseEvent(
-                data.TimeStamp,
-                data.ThreadID,
-                data.ActivityID,
-                data.RelatedActivityID,
-                data.ProviderGuid,
-                data.TaskName,
-                (Int64)data.Keywords,
-                (UInt16)data.ID,
-                data.EventData()
-                );
+            try
+            {
+                ParseEvent(
+                    data.TimeStamp,
+                    data.ThreadID,
+                    data.ActivityID,
+                    data.RelatedActivityID,
+                    data.ProviderGuid,
+                    data.TaskName,
+                    (Int64)data.Keywords,
+                    (UInt16)data.ID,
+                    data.EventData()
+                    );
+            }
+            catch (Exception x)
+            {
+                Console.WriteLine(x.Message);
+            }
         }
 
 
@@ -906,11 +931,22 @@ namespace Shared
             EventSourcePayload payload = new EventSourcePayload(eventData);
             var versionMajor = payload.GetByte();
             var versionMinor = payload.GetByte();
-            var connectionId = payload.GetInt64();
-            var scheme = payload.GetString();
-            var host = payload.GetString();
-            var port = payload.GetUInt32();
-            var path = payload.GetString();
+
+            // in .NET 7, nothing else is available
+            Int64 connectionId = 0;
+            var scheme = "";
+            var host = "";
+            UInt32 port = 0;
+            var path = "";
+
+            if (eventData.Length > 2)
+            {
+                connectionId = payload.GetInt64();
+                scheme = payload.GetString();
+                host = payload.GetString();
+                port = payload.GetUInt32();
+                path = payload.GetString();
+            }
 
             if (port != 0)
             {
@@ -925,14 +961,21 @@ namespace Shared
             }
             else
             {
-                WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
-                if (path.StartsWith("/"))
+                if (scheme.Length > 0)
                 {
                     WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
+                    if (path.StartsWith("/"))
+                    {
+                        WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}{path}");
+                    }
+                    else
+                    {
+                        WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}/{path}");
+                    }
                 }
                 else
                 {
-                    WriteLogLine($"       |= [{connectionId,3}] {scheme}://{host}/{path}");
+                    WriteLogLine($"       |= [{connectionId,3}] url not available");
                 }
             }
 
@@ -998,9 +1041,16 @@ namespace Shared
             )
         {
             WriteLogLine("RequestHeadersStart");
-            // long connectionId
-            EventSourcePayload payload = new EventSourcePayload(eventData);
-            var connectionId = payload.GetInt64();
+
+            // in .NET 7, no payload
+            Int64 connectionId = 0;
+
+            if (eventData.Length > 0)
+            {
+                // long connectionId
+                EventSourcePayload payload = new EventSourcePayload(eventData);
+                connectionId = payload.GetInt64();
+            }
 
             WriteLogLine($"       |QH[{connectionId,3}]");
 
@@ -1016,8 +1066,6 @@ namespace Shared
             )
         {
             WriteLogLine("RequestHeadersStop");
-            WriteLogLine($"      <|QH");
-
             HttpRequestHeaderStop?.Invoke(this, new EventPipeBaseArgs(timestamp, threadId, activityId, relatedActivityId));
         }
 

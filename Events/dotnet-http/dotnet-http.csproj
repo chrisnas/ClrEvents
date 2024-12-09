@@ -9,11 +9,12 @@
     <ToolCommandName>dotnet-http</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.2.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>
     <PackageId>dotnet-http</PackageId>
-    <PackageVersion>1.1.0</PackageVersion>
+    <PackageVersion>$(Version)</PackageVersion>
     <Title>dotnet-http</Title>
     <Authors>Christophe Nasarre</Authors>
     <Owners>chrisnas</Owners>
