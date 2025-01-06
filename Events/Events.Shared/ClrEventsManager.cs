@@ -168,7 +168,8 @@ namespace Shared
         private static ulong GetKeywords()
         {
             return (ulong)(
-                ClrTraceEventParser.Keywords.Contention |           // thread contention timing
+                //ClrTraceEventParser.Keywords.Contention |           // thread contention timing
+                ClrTraceEventParser.Keywords.WaitHandle |           // .NET 9 WaitHandle kind of contention
                 ClrTraceEventParser.Keywords.Threading |            // threadpool events
                 ClrTraceEventParser.Keywords.Exception |            // get the first chance exceptions
                 ClrTraceEventParser.Keywords.GCHeapAndTypeNames |   // for finalizer type names
@@ -223,8 +224,12 @@ namespace Shared
             // decide which provider to listen to with filters if needed
             _session.EnableProvider(
                 ClrTraceEventParser.ProviderGuid,  // CLR provider
-                ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ?
-                    TraceEventLevel.Verbose : TraceEventLevel.Informational,
+                (
+                    ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ||
+                    ((_filter & EventFilter.Contention) == EventFilter.Contention)  // for .NET 9
+                )
+                ? TraceEventLevel.Verbose
+                : TraceEventLevel.Informational,
                 GetKeywords(),
                 options
             );
@@ -254,6 +259,8 @@ namespace Shared
                 // get thread contention time
                 source.Clr.ContentionStart += OnContentionStart;
                 source.Clr.ContentionStop += OnContentionStop;
+                source.Clr.WaitHandleWaitStart += OnWaitHandleWaitStart;
+                source.Clr.WaitHandleWaitStop += OnWaitHandleWaitStop;
             }
 
             if ((_filter & EventFilter.ThreadStarvation) == EventFilter.ThreadStarvation)
@@ -1291,6 +1298,44 @@ namespace Shared
             var isManaged = (data.ContentionFlags == ContentionFlags.Managed);
             NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, TimeSpan.FromMilliseconds(contentionDurationMSec), isManaged);
         }
+
+        // new .NET 9 contention events for WaitHandle-derived classes
+        private void OnWaitHandleWaitStart(WaitHandleWaitStartTraceData data)
+        {
+            ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
+            if (info == null)
+                return;
+
+            //Console.WriteLine($"        {data.ThreadID,8}  | {data.TimeStampRelativeMSec}");
+
+            info.TimeStamp = data.TimeStamp;
+            info.ContentionStartRelativeMSec = data.TimeStampRelativeMSec;
+        }
+
+        private void OnWaitHandleWaitStop(WaitHandleWaitStopTraceData data)
+        {
+            ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
+            if (info == null)
+                return;
+
+            // unlucky case when we start to listen just after the WaitHandleStart event
+            if (info.ContentionStartRelativeMSec == 0)
+            {
+                return;
+            }
+
+            // Too bad the duration is not provided in the payload like in ContentionStop...
+            var contentionDurationMSec = data.TimeStampRelativeMSec - info.ContentionStartRelativeMSec;
+
+            info.ContentionStartRelativeMSec = 0;
+            bool isManaged = true;  // always managed
+            var duration = TimeSpan.FromMilliseconds(contentionDurationMSec);
+
+            //Console.WriteLine($"        {data.ThreadID,8}  < {data.TimeStampRelativeMSec} = {duration.TotalMilliseconds} ms");
+            NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, duration, isManaged);
+        }
+
+
 
         private void OnThreadPoolWorkerAdjustment(ThreadPoolWorkerThreadAdjustmentTraceData data)
         {

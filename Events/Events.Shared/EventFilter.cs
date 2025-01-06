@@ -7,7 +7,7 @@ namespace Shared
     {
         Exception         = 1 << 0,
         Finalizer         = 1 << 2,
-        Contention        = 1 << 3,
+        Contention        = 1 << 3,  // including .NET 9 WaitHandle
         ThreadStarvation  = 1 << 4,
         GC                = 1 << 5,
         AllocationTick    = 1 << 6,

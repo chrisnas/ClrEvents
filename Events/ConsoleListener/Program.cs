@@ -8,7 +8,6 @@ using System;
 using System.Threading.Tasks;
 using Shared;
 
-
 namespace ConsoleListener
 {
     class Program
@@ -22,7 +21,7 @@ namespace ConsoleListener
         static void Main(string[] args)
         {
             // filter on process if any
-            int pid = 72880;
+            int pid = 100060;
             if (args.Length == 1)
             {
                 int.TryParse(args[0], out pid);
@@ -58,7 +57,8 @@ namespace ConsoleListener
                 // don't want allocation ticks by default because it might have a noticeable impact
                 //ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All & ~EventFilter.AllocationTick);
                 //ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.All, isLogging:true);
-                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.Network, isLogging:true);
+                //ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.Network, isLogging: true);
+                ClrEventsManager manager = new ClrEventsManager(pid, EventFilter.Contention, isLogging: true);
                 RegisterEventHandlers(manager);
 
                 // this is a blocking call until the session is disposed
@@ -91,8 +91,8 @@ namespace ConsoleListener
         {
             if (e.IsManaged)
             {
-                if (e.Duration.Milliseconds > 0)
-                    Console.WriteLine($"[{e.ProcessId,7}.{e.ThreadId,7}] | {e.Duration.Milliseconds} ms");
+                if (e.Duration.TotalMilliseconds > 0)
+                    Console.WriteLine($"[{e.ProcessId,7}.{e.ThreadId,7}] | {e.Duration.TotalMilliseconds} ms");
             }
         }
 
