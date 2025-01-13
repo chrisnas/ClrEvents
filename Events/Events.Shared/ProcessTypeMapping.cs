@@ -1,9 +1,7 @@
 ﻿using System.Collections.Generic;
 
-namespace SampledObjectAllocationProfiler
+namespace Shared
 {
-    // Contains the mapping between type ID received by SampleObjectAllocation(Low/High) events
-    // and their name received by TypeBulkType events
     public class ProcessTypeMapping
     {
         private readonly Dictionary<ulong, string> _typesIdToName;

@@ -18,8 +18,10 @@ namespace Shared
         private readonly int _processId;
         private readonly TypesInfo _types;
         private readonly ContentionInfoStore _contentionStore;
+        private readonly MethodStore _methods;
         private readonly EventFilter _filter;
         private readonly TraceEventSession _session;
+        private ClrRundownTraceEventParser _rundownParser;
         private TplEtwProviderTraceEventParser _TplParser;
 
 
@@ -69,8 +71,10 @@ namespace Shared
             _types = new TypesInfo();
             _contentionStore = new ContentionInfoStore();
             _contentionStore.AddProcess(processId);
+            _methods = new MethodStore(processId, false);
             _filter = filter;
             _isLogging = isLogging;
+            _rundownParser = null;
         }
 
         // constructor for TraceEvent + ETW traces
@@ -126,56 +130,110 @@ namespace Shared
         public const EventKeywords AsyncMethod = (EventKeywords)0x100;
 
 
-        private static IReadOnlyCollection<Provider> GetProviders()
+        private List<Provider> GetProviders()
         {
-            var providers = new Provider[]
+            List<Provider> providers = new List<Provider>()
             {
                 new Provider(
                     name: "Microsoft-Windows-DotNETRuntime",
-                    keywords:   GetKeywords(),
-                    eventLevel: EventLevel.Verbose),
+                    keywords: GetKeywords(),
+                    eventLevel: EventLevel.Verbose  // TODO: only verbose for allocations and WaitHandle contention ?...
+                    )
+            };
 
+            if ((_filter & EventFilter.Contention) == EventFilter.Contention)
+            {
+                providers.Add(
+                    new Provider(
+                        name: ClrRundownTraceEventParser.ProviderName,
+                        keywords: (ulong)(
+                            ClrTraceEventParser.Keywords.Jit |
+                            ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |
+                            ClrTraceEventParser.Keywords.Loader |
+                            ClrTraceEventParser.Keywords.StartEnumeration  // This indicates to do the rundown now (at enable time)
+                            ),
+                        eventLevel: EventLevel.Verbose)
+                    );
+            }
+
+            if ((_filter & EventFilter.Network) == EventFilter.Network)
+            {
+                providers.Add(
                 new Provider(
                     name: "System.Net.Http",
                     keywords: (ulong)(1),
-                    eventLevel: EventLevel.Verbose),
-
-                new Provider(
-                    name: "System.Net.Sockets",
-                    keywords: (ulong)(0xFFFFFFFF),
-                    eventLevel: EventLevel.Verbose),
-
-                new Provider(
-                    name: "System.Net.NameResolution",
-                    keywords: (ulong)(0xFFFFFFFF),
-                    eventLevel: EventLevel.Verbose),
-
-                new Provider(
-                    name: "System.Net.Security",
-                    keywords: (ulong)(0xFFFFFFFF),
-                    eventLevel: EventLevel.Verbose),
-
+                    eventLevel: EventLevel.Verbose)
+                );
+                providers.Add(
+                    new Provider(
+                        name: "System.Net.Sockets",
+                        keywords: (ulong)(0xFFFFFFFF),
+                        eventLevel: EventLevel.Verbose)
+                );
+                providers.Add(
+                    new Provider(
+                        name: "System.Net.NameResolution",
+                        keywords: (ulong)(0xFFFFFFFF),
+                        eventLevel: EventLevel.Verbose)
+                );
+                providers.Add(
+                    new Provider(
+                        name: "System.Net.Security",
+                        keywords: (ulong)(0xFFFFFFFF),
+                        eventLevel: EventLevel.Verbose)
+                );
+                providers.Add(
                 new Provider(
                     name: "System.Threading.Tasks.TplEventSource",      //   V-- this one is required to get the network events ActivityId
                     keywords: (ulong)(1 + 2 + 4 + 8 + 0x10 + 0x20 + 0x40 + 0x80 + 0x100),
-                    eventLevel: EventLevel.Verbose),
-
-            };
+                    eventLevel: EventLevel.Verbose)
+                );
+            }
 
             return providers;
         }
 
-        private static ulong GetKeywords()
+        private ulong GetKeywords()
         {
-            return (ulong)(
-                //ClrTraceEventParser.Keywords.Contention |           // thread contention timing
-                ClrTraceEventParser.Keywords.WaitHandle |           // .NET 9 WaitHandle kind of contention
-                ClrTraceEventParser.Keywords.Threading |            // threadpool events
-                ClrTraceEventParser.Keywords.Exception |            // get the first chance exceptions
-                ClrTraceEventParser.Keywords.GCHeapAndTypeNames |   // for finalizer type names
-                ClrTraceEventParser.Keywords.Type |                 // for TypeBulkType definition of types
-                ClrTraceEventParser.Keywords.GC                     // garbage collector details
-                );
+            ClrTraceEventParser.Keywords keywords = 0;
+
+            if ((_filter & EventFilter.Contention) == EventFilter.Contention)
+            {
+                keywords |= ClrTraceEventParser.Keywords.Contention;        // thread contention timing
+                keywords |= ClrTraceEventParser.Keywords.WaitHandle;        // .NET 9 WaitHandle kind of contention
+                keywords |= ClrTraceEventParser.Keywords.Stack;             // we want to get the ClrStackWalk sibling events
+
+                // events related to JITed methods
+                keywords |= ClrTraceEventParser.Keywords.Jit | // Turning on JIT events is necessary to resolve JIT compiled code
+                            ClrTraceEventParser.Keywords.JittedMethodILToNativeMap | // This is needed if you want line number information in the stacks
+                            ClrTraceEventParser.Keywords.Loader; // You must include loader events as well to resolve JIT compiled code.
+            }
+
+            if ((_filter & EventFilter.ThreadStarvation) == EventFilter.ThreadStarvation)
+            {
+                keywords |= ClrTraceEventParser.Keywords.Threading;         // threadpool events
+            }
+
+            if ((_filter & EventFilter.Exception) == EventFilter.Exception)
+            {
+                keywords |= ClrTraceEventParser.Keywords.Exception;         // get the first chance exceptions
+            }
+
+            if (
+                ((_filter & EventFilter.Finalizer) == EventFilter.Finalizer) ||
+                ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick)
+                )
+            {
+                keywords |= ClrTraceEventParser.Keywords.GCHeapAndTypeNames // for finalizer type names
+                         | ClrTraceEventParser.Keywords.Type;               // for TypeBulkType definition of types
+            }
+
+            if ((_filter & EventFilter.GC) == EventFilter.GC)
+            {
+                keywords |= ClrTraceEventParser.Keywords.GC;                // garbage collector details
+            }
+
+            return (ulong)keywords;
         }
 
         public void ProcessEvents()
@@ -261,6 +319,18 @@ namespace Shared
                 source.Clr.ContentionStop += OnContentionStop;
                 source.Clr.WaitHandleWaitStart += OnWaitHandleWaitStart;
                 source.Clr.WaitHandleWaitStop += OnWaitHandleWaitStop;
+
+                // deal with call stacks but don't get native frames name (requires ETW kernel provider)
+                // NOTE: these events are not sent with EventPipe; only ETW
+                //source.Clr.ClrStackWalk += OnStackWalk;
+
+                // needed to get JITed method details
+                source.Clr.MethodLoadVerbose += OnMethodDetails;
+                source.Clr.MethodDCStartVerboseV2 += OnMethodDetails;
+
+                _rundownParser = new ClrRundownTraceEventParser(source);
+                _rundownParser.MethodDCStartVerbose += OnMethodDetailsRundown;
+                _rundownParser.MethodDCStopVerbose += OnMethodDetailsRundown;
             }
 
             if ((_filter & EventFilter.ThreadStarvation) == EventFilter.ThreadStarvation)
@@ -294,7 +364,10 @@ namespace Shared
                 source.Clr.GCAllocationTick += OnGCAllocationTick;
             }
 
-            if ((_filter & EventFilter.Network) == EventFilter.Network)
+            if (
+                ((_filter & EventFilter.Network) == EventFilter.Network) |
+                ((_filter & EventFilter.Contention) == EventFilter.Contention)
+                )
             {
                 source.AllEvents += OnEvents;
             }
@@ -308,6 +381,41 @@ namespace Shared
             _TplParser.TaskWaitSend += OnTaskWaitSend;
             _TplParser.TaskWaitStop += OnTaskWaitStop;
         }
+
+        private void OnMethodDetailsRundown(MethodLoadUnloadVerboseTraceData data)
+        {
+            // care only about jitted methods
+            if (!data.IsJitted) return;
+
+            _methods.Add(data.MethodStartAddress, data.MethodSize, data.MethodNamespace, data.MethodName, data.MethodSignature);
+
+            if (_isLogging)
+            {
+                WriteLogLine($">  0x{data.MethodStartAddress.ToString("x12")} - {data.MethodSize,6} | {data.MethodName}");
+            }
+        }
+
+        private void OnMethodDetails(MethodLoadUnloadVerboseTraceData data)
+        {
+            // care only about jitted methods
+            if (!data.IsJitted) return;
+
+            _methods.Add(data.MethodStartAddress, data.MethodSize, data.MethodNamespace, data.MethodName, data.MethodSignature);
+
+            if (_isLogging)
+            {
+                WriteLogLine($"   0x{data.MethodStartAddress.ToString("x12")} - {data.MethodSize,6} | {data.MethodName}");
+            }
+        }
+
+        //private void OnStackWalk(ClrStackWalkTraceData data)
+        //{
+        //    if (_isLogging)
+        //    {
+        //        WriteLogLine($"tid = {data.ThreadID,7} | StackWalk");
+        //    }
+        //}
+
 
         private void OnTaskScheduledSend(TaskScheduledArgs args)
         {
@@ -341,27 +449,27 @@ namespace Shared
             if (data.ProcessID != _processId)
                 return;
 
-            // skip .NET runtime events
-            if (data.ProviderGuid.ToString() == ClrProviderGuid)
-                return;
-
             // skip TPL events
             if (data.ProviderGuid == TplEventSourceGuild)
                 return;
 
-            // skip events that are not related to network
-            if (
-                (data.ProviderGuid != NetSecurityEventSourceProviderGuid) &&
-                (data.ProviderGuid != DnsEventSourceProviderGuid) &&
-                (data.ProviderGuid != SocketEventSourceProviderGuid) &&
-                (data.ProviderGuid != HttpEventSourceProviderGuid)
-                )
-                return;
+            //// skip .NET runtime events
+            //if (data.ProviderGuid.ToString() == ClrProviderGuid)
+            //    return;
 
-            if (data.ActivityID == Guid.Empty)
-            {
-                return;
-            }
+            //// skip events that are not related to network
+            //if (
+            //    (data.ProviderGuid != NetSecurityEventSourceProviderGuid) &&
+            //    (data.ProviderGuid != DnsEventSourceProviderGuid) &&
+            //    (data.ProviderGuid != SocketEventSourceProviderGuid) &&
+            //    (data.ProviderGuid != HttpEventSourceProviderGuid)
+            //    )
+            //    return;
+
+            //if (data.ActivityID == Guid.Empty)
+            //{
+            //    return;
+            //}
 
             //WriteLogLine($"{data.ProcessID,7} > {data.ActivityID}  ({data.ProviderName,16} - {(int)data.Keywords,8:x}) ___[{(int)data.Opcode}|{data.OpcodeName}] {data.EventName}");
 
@@ -369,19 +477,19 @@ namespace Shared
 
             //WriteLogLine();
 
-            //WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+            WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] {data.EventName}");
 
-            // show the path corresponding to the ActivityID
-            // handle special ID 0 event corresponding to a message
-            if (data.ID == 0)
-            {
-                WriteLogLine($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] {data.FormattedMessage} ");
-                return;
-            }
-            else
-            {
-                WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
-            }
+            //// show the path corresponding to the ActivityID
+            //// handle special ID 0 event corresponding to a message
+            //if (data.ID == 0)
+            //{
+            //    WriteLogLine($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] {data.FormattedMessage} ");
+            //    return;
+            //}
+            //else
+            //{
+            //    WriteLog($"{data.ThreadID,6} | {data.ActivityID,16} = {ActivityHelpers.ActivityPathString(data.ActivityID, 0),16} > event {data.ID,3} __ [{(int)data.Opcode,2}|{data.OpcodeName,6}] ");
+            //}
 
 
             // NOTE: the fields names array is always empty  :^(
@@ -433,6 +541,7 @@ namespace Shared
         private static Guid DnsEventSourceProviderGuid = Guid.Parse("4b326142-bfb5-5ed3-8585-7714181d14b0");
         private static Guid SocketEventSourceProviderGuid = Guid.Parse("d5b2e7d4-b6ec-50ae-7cde-af89427ad21f");
         private static Guid HttpEventSourceProviderGuid = Guid.Parse("d30b5633-7ef1-5485-b4e0-94979b102068");
+        private static Guid RundownProviderGuid = ClrRundownTraceEventParser.ProviderGuid;
 
         private void ParseEvent(
             DateTime timestamp,
@@ -446,6 +555,11 @@ namespace Shared
             byte[] eventData
             )
         {
+            if (providerGuid == RundownProviderGuid)
+            {
+                HandleRundownEvents(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
+            }
+            else
             if (providerGuid == NetSecurityEventSourceProviderGuid)
             {
                 HandleNetSecurityEvent(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
@@ -469,6 +583,26 @@ namespace Shared
             {
                 WriteLogLine();
             }
+        }
+
+        private void HandleRundownEvents(DateTime timestamp, int threadId, Guid activityId, Guid relatedActivityId, ushort id, string taskName, byte[] eventData)
+        {
+            if (_isLogging)
+            {
+                WriteLogLine($"Rundown event {id} - {taskName}");
+            }
+
+            switch (id)
+            {
+                case 143: HandleMethodDCStartVerbose(timestamp, threadId, activityId, relatedActivityId, id, taskName, eventData);
+
+                    break;
+            }
+        }
+
+        private void HandleMethodDCStartVerbose(DateTime timestamp, int threadId, Guid activityId, Guid relatedActivityId, ushort id, string taskName, byte[] eventData)
+        {
+            WriteLogLine("MethodDCStartVerbose");
         }
 
         private void HandleNetSecurityEvent(
@@ -1270,15 +1404,44 @@ namespace Shared
             NotifyFinalize(data.TimeStamp, data.ProcessID, data.TypeID, _types[data.TypeID]);
         }
 
+        private AddressStack BuildCallStack(EventPipeUnresolvedStack data)
+        {
+            if (data == null)
+                return null;
+
+            var length = data.Addresses.Length;
+            AddressStack stack = new AddressStack(length);
+
+            // frame 0 is the last frame of the stack (i.e. last called method)
+            for (int i = 0; i < length; i++)
+            {
+                stack.AddFrame(data.Addresses[i]);
+            }
+
+            return stack;
+        }
+
         private void OnContentionStart(ContentionStartTraceData data)
         {
+            // TODO: move the ReadFrom code to AddressStack to have only 1 class to handle call stacks
+            var callStack = EventPipeUnresolvedStack.ReadFrom(data);
+            var stack = BuildCallStack(callStack);
+
+            if (_isLogging)
+            {
+                int nbFrames = (callStack == null) ? 0 : callStack.Addresses.Length;
+                WriteLogLine($"   {nbFrames} frames");
+            }
+
             ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
             if (info == null)
                 return;
 
             info.TimeStamp = data.TimeStamp;
             info.ContentionStartRelativeMSec = data.TimeStampRelativeMSec;
+            info.Stack = stack;
         }
+
         private void OnContentionStop(ContentionStopTraceData data)
         {
             ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
@@ -1296,12 +1459,38 @@ namespace Shared
 
             info.ContentionStartRelativeMSec = 0;
             var isManaged = (data.ContentionFlags == ContentionFlags.Managed);
-            NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, TimeSpan.FromMilliseconds(contentionDurationMSec), isManaged);
+            var callstack = SymbolizeStack(info.Stack);
+            NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, TimeSpan.FromMilliseconds(contentionDurationMSec), isManaged, callstack);
+        }
+
+        private List<string> SymbolizeStack(AddressStack stack)
+        {
+            if (stack == null)
+                return null;
+
+            List<string> callstack = new List<string>(stack.Stack.Count);
+            foreach (var frame in stack.Stack)
+            {
+                string method = _methods.GetFullName(frame);
+                callstack.Add(method);
+            }
+
+            return callstack;
         }
 
         // new .NET 9 contention events for WaitHandle-derived classes
         private void OnWaitHandleWaitStart(WaitHandleWaitStartTraceData data)
         {
+            // TODO: move the ReadFrom code to AddressStack to have only 1 class to handle call stacks
+            var callStack = EventPipeUnresolvedStack.ReadFrom(data);
+            var stack = BuildCallStack(callStack);
+
+            if (_isLogging)
+            {
+                int nbFrames = (callStack == null) ? 0 : callStack.Addresses.Length;
+                WriteLogLine($"   {nbFrames} frames");
+            }
+
             ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
             if (info == null)
                 return;
@@ -1310,6 +1499,7 @@ namespace Shared
 
             info.TimeStamp = data.TimeStamp;
             info.ContentionStartRelativeMSec = data.TimeStampRelativeMSec;
+            info.Stack = stack;
         }
 
         private void OnWaitHandleWaitStop(WaitHandleWaitStopTraceData data)
@@ -1330,9 +1520,10 @@ namespace Shared
             info.ContentionStartRelativeMSec = 0;
             bool isManaged = true;  // always managed
             var duration = TimeSpan.FromMilliseconds(contentionDurationMSec);
+            var callstack = SymbolizeStack(info.Stack);
 
             //Console.WriteLine($"        {data.ThreadID,8}  < {data.TimeStampRelativeMSec} = {duration.TotalMilliseconds} ms");
-            NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, duration, isManaged);
+            NotifyContention(data.TimeStamp, data.ProcessID, data.ThreadID, duration, isManaged, callstack);
         }
 
 
@@ -1354,10 +1545,10 @@ namespace Shared
             var listeners = Finalize;
             listeners?.Invoke(this, new FinalizeArgs(timeStamp, processId, typeId, typeName));
         }
-        private void NotifyContention(DateTime timeStamp, int processId, int threadId, TimeSpan duration, bool isManaged)
+        private void NotifyContention(DateTime timeStamp, int processId, int threadId, TimeSpan duration, bool isManaged, List<string> callstack)
         {
             var listeners = Contention;
-            listeners?.Invoke(this, new ContentionArgs(timeStamp, processId, threadId, duration, isManaged));
+            listeners?.Invoke(this, new ContentionArgs(timeStamp, processId, threadId, duration, isManaged, callstack));
         }
         private void NotifyCollection(TraceGC gc)
         {

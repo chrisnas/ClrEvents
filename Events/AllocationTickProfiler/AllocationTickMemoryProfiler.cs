@@ -14,7 +14,7 @@ namespace AllocationTickProfiler
 {
     //
     // From https://github.com/microsoft/perfview/blob/master/src/TraceEvent/Samples/41_TraceLogMonitor.cs
-    // Shows how to get callstacks for ETW events and how to map address on the stack to string symbols 
+    // Shows how to get callstacks for ETW events and how to map address on the stack to string symbols
     // WARNING: large memory consumption to map JITed methods names in case of several .NET apps running at the same time
     public class AllocationTickMemoryProfiler
     {
@@ -42,14 +42,14 @@ namespace AllocationTickProfiler
             _symbolLookupMessages = new StringWriter();
 
             // By default a symbol Reader uses whatever is in the _NT_SYMBOL_PATH variable.  However you can override
-            // if you wish by passing it to the SymbolReader constructor.  Since we want this to work even if you 
+            // if you wish by passing it to the SymbolReader constructor.  Since we want this to work even if you
             // have not set an _NT_SYMBOL_PATH, so we add the Microsoft default symbol server path to be sure/
             var symbolPath = new SymbolPath(SymbolPath.SymbolPathFromEnvironment).Add(SymbolPath.MicrosoftSymbolServerPath);
             _symbolReader = new SymbolReader(_symbolLookupMessages, symbolPath.ToString());
 
-            // By default the symbol reader will NOT read PDBs from 'unsafe' locations (like next to the EXE)  
+            // By default the symbol reader will NOT read PDBs from 'unsafe' locations (like next to the EXE)
             // because hackers might make malicious PDBs. If you wish ignore this threat, you can override this
-            // check to always return 'true' for checking that a PDB is 'safe'.  
+            // check to always return 'true' for checking that a PDB is 'safe'.
             _symbolReader.SecurityCheck = (path => true);
         }
 
@@ -83,7 +83,7 @@ namespace AllocationTickProfiler
         private void SetupProviders(TraceEventSession session)
         {
             // Note: the kernel provider MUST be the first provider to be enabled
-            // If the kernel provider is not enabled, the callstacks for CLR events are still received 
+            // If the kernel provider is not enabled, the callstacks for CLR events are still received
             // but the symbols are not found (except for the application itself)
             // TraceEvent implementation details triggered when a module (image) is loaded
             session.EnableKernelProvider(
@@ -98,9 +98,9 @@ namespace AllocationTickProfiler
                 (ulong)(
                 // required to receive AllocationTick events
                 ClrTraceEventParser.Keywords.GC |
-                ClrTraceEventParser.Keywords.Jit |                      // Turning on JIT events is necessary to resolve JIT compiled code 
+                ClrTraceEventParser.Keywords.Jit |                      // Turning on JIT events is necessary to resolve JIT compiled code
                 ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |// This is needed if you want line number information in the stacks
-                ClrTraceEventParser.Keywords.Loader |                   // You must include loader events as well to resolve JIT compiled code. 
+                ClrTraceEventParser.Keywords.Loader |                   // You must include loader events as well to resolve JIT compiled code.
                 ClrTraceEventParser.Keywords.Stack  // Get the callstack for each event
                 )
             );
@@ -110,7 +110,7 @@ namespace AllocationTickProfiler
             (ulong)(
                 ClrTraceEventParser.Keywords.Jit |              // We need JIT events to be rundown to resolve method names
                 ClrTraceEventParser.Keywords.JittedMethodILToNativeMap | // This is needed if you want line number information in the stacks
-                ClrTraceEventParser.Keywords.Loader |           // As well as the module load events.  
+                ClrTraceEventParser.Keywords.Loader |           // As well as the module load events.
                 ClrTraceEventParser.Keywords.StartEnumeration   // This indicates to do the rundown now (at enable time)
                 ));
 
@@ -162,7 +162,7 @@ namespace AllocationTickProfiler
 
         private bool FilterOutEvent(TraceEvent data)
         {
-            // in this example, only monitor a given process 
+            // in this example, only monitor a given process
             return data.ProcessID != _pid;
         }
     }

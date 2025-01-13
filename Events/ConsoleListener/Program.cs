@@ -92,7 +92,16 @@ namespace ConsoleListener
             if (e.IsManaged)
             {
                 if (e.Duration.TotalMilliseconds > 0)
+                {
                     Console.WriteLine($"[{e.ProcessId,7}.{e.ThreadId,7}] | {e.Duration.TotalMilliseconds} ms");
+                    if (e.Callstack != null)
+                    {
+                        for (int i = 0; i < e.Callstack.Count; i++)
+                        {
+                            Console.WriteLine($"    {e.Callstack[i]}");
+                        }
+                    }
+                }
             }
         }
 

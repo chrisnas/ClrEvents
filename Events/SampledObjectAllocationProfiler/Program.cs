@@ -16,14 +16,14 @@ namespace SampledObjectAllocationProfiler
             try
             {
                 (bool noSampling, bool sortBySize, int topTypesLimit) parameters = GetParameters(args);
-    
+
                 TraceEventSession session = new TraceEventSession(
                     "SampledObjectAllocationMemoryProfilingSession",
                     TraceEventSessionOptions.Create
                     );
 
                 using (var processes = new PerProcessProfilingState())
-                { 
+                {
                     var profiler = new SampledObjectAllocationMemoryProfiler(session, processes);
                     var task = profiler.StartAsync(parameters.noSampling);
 

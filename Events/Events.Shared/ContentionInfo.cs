@@ -2,7 +2,7 @@
 
 namespace Shared
 {
-    internal class ContentionInfo
+    public class ContentionInfo
     {
         public ContentionInfo(int processId, int threadId)
         {
@@ -17,5 +17,7 @@ namespace Shared
         public int ThreadId { get; set; }
 
         public double ContentionStartRelativeMSec { get; set; }
+
+        public AddressStack Stack { get; set; }
     }
 }

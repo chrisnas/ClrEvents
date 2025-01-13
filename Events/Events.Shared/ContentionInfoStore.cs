@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Shared
 {
-    internal class ContentionInfoStore
+    public class ContentionInfoStore
     {
         private readonly ConcurrentDictionary<int, ProcessContentionInfo> _perProcessContentionInfo = new ConcurrentDictionary<int, ProcessContentionInfo>();
 
@@ -31,7 +31,7 @@ namespace Shared
         }
     }
 
-    internal struct ProcessContentionInfo
+    public struct ProcessContentionInfo
     {
         private readonly int _processId;
         private readonly Dictionary<int, ContentionInfo> _perThreadContentionInfo;

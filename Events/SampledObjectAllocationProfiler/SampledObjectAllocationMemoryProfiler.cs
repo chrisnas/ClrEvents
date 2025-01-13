@@ -16,7 +16,7 @@ namespace SampledObjectAllocationProfiler
     {
         private readonly TraceEventSession _session;
         private readonly PerProcessProfilingState _processes;
-        
+
         // because we are not interested in self monitoring
         private readonly int _currentPid;
 
@@ -42,7 +42,7 @@ namespace SampledObjectAllocationProfiler
                 {
                     SetupProviders(_session, allAllocations);
                     SetupListeners(_session.Source);
-                    
+
                     _session.Source.Process();
                 }
             });
@@ -51,7 +51,7 @@ namespace SampledObjectAllocationProfiler
         private void SetupProviders(TraceEventSession session, bool noSampling)
         {
             // Note: the kernel provider MUST be the first provider to be enabled
-            // If the kernel provider is not enabled, the callstacks for CLR events are still received 
+            // If the kernel provider is not enabled, the callstacks for CLR events are still received
             // but the symbols are not found (except for the application itself)
             // Maybe a TraceEvent implementation details triggered when a module (image) is loaded
             var success = session.EnableKernelProvider(
@@ -62,7 +62,7 @@ namespace SampledObjectAllocationProfiler
 
             // The CLR source code indicates that the provider must be set before the monitored application starts
             // Note: no real difference between High and Low
-            ClrTraceEventParser.Keywords eventsKeyword = noSampling 
+            ClrTraceEventParser.Keywords eventsKeyword = noSampling
                 ? ClrTraceEventParser.Keywords.GCSampledObjectAllocationLow | ClrTraceEventParser.Keywords.GCSampledObjectAllocationHigh
                 : ClrTraceEventParser.Keywords.GCSampledObjectAllocationLow
                 ;
@@ -74,15 +74,15 @@ namespace SampledObjectAllocationProfiler
 
                 eventsKeyword |
 
-                // required to receive the BulkType events that allows 
+                // required to receive the BulkType events that allows
                 // mapping between the type ID received in the allocation events
                 ClrTraceEventParser.Keywords.GCHeapAndTypeNames |
                 ClrTraceEventParser.Keywords.Type |
 
                 // events related to JITed methods
-                ClrTraceEventParser.Keywords.Jit |              // Turning on JIT events is necessary to resolve JIT compiled code 
+                ClrTraceEventParser.Keywords.Jit |              // Turning on JIT events is necessary to resolve JIT compiled code
                 ClrTraceEventParser.Keywords.JittedMethodILToNativeMap | // This is needed if you want line number information in the stacks
-                ClrTraceEventParser.Keywords.Loader |                   // You must include loader events as well to resolve JIT compiled code. 
+                ClrTraceEventParser.Keywords.Loader |                   // You must include loader events as well to resolve JIT compiled code.
 
                 // this is mandatory to get the callstacks in each CLR event payload.
                 ClrTraceEventParser.Keywords.Stack
@@ -159,9 +159,9 @@ namespace SampledObjectAllocationProfiler
             }
             GetProcessAllocations(data.ProcessID)
                 .AddAllocation(
-                data.ThreadID, 
-                (ulong)data.TotalSizeForTypeSample, 
-                (ulong)data.ObjectCountForTypeSample, 
+                data.ThreadID,
+                (ulong)data.TotalSizeForTypeSample,
+                (ulong)data.ObjectCountForTypeSample,
                 typeName
                 );
         }

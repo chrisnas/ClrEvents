@@ -8,13 +8,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsAssemblyName Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="Microsoft.Diagnostics.Tools.RuntimeClient">
       <HintPath>..\Microsoft.Diagnostics.Tools.RuntimeClient.dll</HintPath>
     </Reference>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.17" />
+    <PackageReference Include="IgnoresAccessChecksToGenerator" Version="0.8.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.18" />
   </ItemGroup>
 
 </Project>

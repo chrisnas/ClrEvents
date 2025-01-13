@@ -10,7 +10,7 @@ namespace ProfilerHelpers
     {
         // JITed methods information (start address + size + signature)
         private readonly List<MethodInfo> _methods;
-        
+
         // addresses from callstacks already matching (address -> full name)
         private readonly Dictionary<ulong, string> _cache;
 
@@ -66,7 +66,7 @@ namespace ProfilerHelpers
             //   - The _NT_SYMBOL_PATH environment variable
             //   - The _NT_ALTERNATE_SYMBOL_PATH environment variable
             //
-            // passing false as last parameter means that we will need to call SymLoadModule64 
+            // passing false as last parameter means that we will need to call SymLoadModule64
             // each time a module is loaded in the process
             return NativeDbgHelp.SymInitialize(hProcess, null, loadModules);
         }
@@ -82,12 +82,12 @@ namespace ProfilerHelpers
         {
             if (_cache.TryGetValue(address, out var fullName))
                 return fullName;
-            
+
             // look for managed methods
             for (int i = 0; i < _methods.Count; i++)
             {
                 var method = _methods[i];
-                
+
                 if ((address >= method.StartAddress) && (address < method.StartAddress + (ulong)method.Size))
                 {
                     fullName = method.FullName;
@@ -197,7 +197,7 @@ namespace ProfilerHelpers
         [DllImport("dbghelp.dll", SetLastError = true, CharSet = CharSet.Ansi)]
         public static extern ulong SymLoadModule64(IntPtr hProcess, IntPtr hFile, string imageName, string moduleName, ulong baseOfDll, uint sizeOfDll);
 
-        // use ANSI version to ensure the right size of the structure 
+        // use ANSI version to ensure the right size of the structure
         // read https://docs.microsoft.com/en-us/windows/win32/api/dbghelp/ns-dbghelp-symbol_info
         [DllImport("dbghelp.dll", SetLastError = true, CharSet = CharSet.Ansi)]
         public static extern bool SymFromAddr(IntPtr hProcess, ulong address, out ulong displacement, ref SYMBOL_INFO symbol);

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ProfilerHelpers
+namespace Shared
 {
     public class MethodInfo
     {
