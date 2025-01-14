@@ -48,7 +48,7 @@ namespace dotnet_wait
             {
                 if (parameters.pid != -1)
                 {
-                    ClrEventsManager source = new ClrEventsManager(parameters.pid, EventFilter.Contention, isLogging: true);
+                    ClrEventsManager source = new ClrEventsManager(parameters.pid, EventFilter.Contention, isLogging: false);
                     ContentionEventsManager manager = new ContentionEventsManager(source, parameters.waitThreshold);
 
                     // this is a blocking call until the session is disposed

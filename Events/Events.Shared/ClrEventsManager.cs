@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
 using System.Text;
-using Microsoft.Diagnostics.Tools.RuntimeClient;
+using Microsoft.Diagnostics.NETCore.Client;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Analysis.GC;
 using Microsoft.Diagnostics.Tracing.Parsers;
@@ -130,62 +130,63 @@ namespace Shared
         public const EventKeywords AsyncMethod = (EventKeywords)0x100;
 
 
-        private List<Provider> GetProviders()
+        private List<EventPipeProvider> GetProviders()
         {
-            List<Provider> providers = new List<Provider>()
+            List<EventPipeProvider> providers = new List<EventPipeProvider>()
             {
-                new Provider(
+                new EventPipeProvider(
                     name: "Microsoft-Windows-DotNETRuntime",
                     keywords: GetKeywords(),
                     eventLevel: EventLevel.Verbose  // TODO: only verbose for allocations and WaitHandle contention ?...
                     )
             };
 
-            if ((_filter & EventFilter.Contention) == EventFilter.Contention)
-            {
-                providers.Add(
-                    new Provider(
-                        name: ClrRundownTraceEventParser.ProviderName,
-                        keywords: (ulong)(
-                            ClrTraceEventParser.Keywords.Jit |
-                            ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |
-                            ClrTraceEventParser.Keywords.Loader |
-                            ClrTraceEventParser.Keywords.StartEnumeration  // This indicates to do the rundown now (at enable time)
-                            ),
-                        eventLevel: EventLevel.Verbose)
-                    );
-            }
+            //// rundown provider is added when the session is created
+            //if ((_filter & EventFilter.Contention) == EventFilter.Contention)
+            //{
+            //    providers.Add(
+            //        new EventPipeProvider(
+            //            name: ClrRundownTraceEventParser.ProviderName,
+            //            keywords: (long)(
+            //                ClrTraceEventParser.Keywords.Jit |
+            //                ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |
+            //                ClrTraceEventParser.Keywords.Loader |
+            //                ClrTraceEventParser.Keywords.StartEnumeration  // This indicates to do the rundown now (at enable time)
+            //                ),
+            //            eventLevel: EventLevel.Verbose)
+            //        );
+            //}
 
             if ((_filter & EventFilter.Network) == EventFilter.Network)
             {
                 providers.Add(
-                new Provider(
+                new EventPipeProvider(
                     name: "System.Net.Http",
-                    keywords: (ulong)(1),
+                    keywords: (long)(1),
                     eventLevel: EventLevel.Verbose)
                 );
                 providers.Add(
-                    new Provider(
+                    new EventPipeProvider(
                         name: "System.Net.Sockets",
-                        keywords: (ulong)(0xFFFFFFFF),
+                        keywords: (long)(0xFFFFFFFF),
                         eventLevel: EventLevel.Verbose)
                 );
                 providers.Add(
-                    new Provider(
+                    new EventPipeProvider(
                         name: "System.Net.NameResolution",
-                        keywords: (ulong)(0xFFFFFFFF),
+                        keywords: (long)(0xFFFFFFFF),
                         eventLevel: EventLevel.Verbose)
                 );
                 providers.Add(
-                    new Provider(
+                    new EventPipeProvider(
                         name: "System.Net.Security",
-                        keywords: (ulong)(0xFFFFFFFF),
+                        keywords: (long)(0xFFFFFFFF),
                         eventLevel: EventLevel.Verbose)
                 );
                 providers.Add(
-                new Provider(
+                new EventPipeProvider(
                     name: "System.Threading.Tasks.TplEventSource",      //   V-- this one is required to get the network events ActivityId
-                    keywords: (ulong)(1 + 2 + 4 + 8 + 0x10 + 0x20 + 0x40 + 0x80 + 0x100),
+                    keywords: (long)(1 + 2 + 4 + 8 + 0x10 + 0x20 + 0x40 + 0x80 + 0x100),
                     eventLevel: EventLevel.Verbose)
                 );
             }
@@ -193,7 +194,7 @@ namespace Shared
             return providers;
         }
 
-        private ulong GetKeywords()
+        private long GetKeywords()
         {
             ClrTraceEventParser.Keywords keywords = 0;
 
@@ -233,7 +234,7 @@ namespace Shared
                 keywords |= ClrTraceEventParser.Keywords.GC;                // garbage collector details
             }
 
-            return (ulong)keywords;
+            return (long)keywords;
         }
 
         public void ProcessEvents()
@@ -249,18 +250,59 @@ namespace Shared
 
         private void ProcessEventPipeEvents()
         {
-            var configuration = new SessionConfiguration(
-                circularBufferSizeMB: 2000,
-                format: EventPipeSerializationFormat.NetTrace,
-                providers: GetProviders()
-            );
+            var client = new DiagnosticsClient(_processId);
+            long rundownKeywords = ((_filter & EventFilter.Contention) == EventFilter.Contention)
+                ? (long) (
+                    ClrTraceEventParser.Keywords.Jit |
+                    ClrTraceEventParser.Keywords.JittedMethodILToNativeMap |
+                    ClrTraceEventParser.Keywords.Loader |
+                    ClrTraceEventParser.Keywords.StartEnumeration  // This indicates to do the rundown now (at enable time)
+                    )
+                : 0;
 
-            var binaryReader = EventPipeClient.CollectTracing(_processId, configuration, out var sessionId);
-            EventPipeEventSource source = new EventPipeEventSource(binaryReader);
-            RegisterListeners(source);
+            //! This is CoreCLR specific keywords for native ETW events (ending up in event pipe).
+            //! The keywords below seems to correspond to:
+            //!  GCKeyword                          (0x00000001)
+            //!  LoaderKeyword                      (0x00000008)
+            //!  JitKeyword                         (0x00000010)
+            //!  NgenKeyword                        (0x00000020)
+            //!  unused_keyword                     (0x00000100)
+            //!  JittedMethodILToNativeMapKeyword   (0x00020000)
+            //!  ThreadTransferKeyword              (0x80000000)
+            // internal const long DefaultRundownKeyword = 0x80020139;
+            // the default value for the rundown provider is not containing 0x40 that asks to send the events right away
 
-            // this is a blocking call
-            source.Process();
+            ////                V-- this is the default rundown keyword
+            //rundownKeywords = 0x80020139 | (long)ClrTraceEventParser.Keywords.StartEnumeration;
+
+            //// HACK that does not work: create and close a session to get the rundown events
+            //if (rundownKeywords != 0)
+            //{
+            //    var configRundown = new EventPipeSessionConfiguration(GetProviders(), 256, rundownKeywords, true);
+            //    using (var session = client.StartEventPipeSession(configRundown))
+            //    {
+            //        var source = new EventPipeEventSource(session.EventStream);
+            //        if ((_filter & EventFilter.Contention) == EventFilter.Contention)
+            //        {
+            //            _rundownParser = new ClrRundownTraceEventParser(source);
+            //            _rundownParser.MethodDCStopVerbose += OnMethodDetailsRundown;
+            //        }
+            //        session.Stop();
+            //    }
+            //    // events should be emitted now
+            //    //client = new DiagnosticsClient(_processId);
+            //}
+
+            // no need to get the rundown events again
+            var config = new EventPipeSessionConfiguration(GetProviders(), 256, rundownKeywords, true);
+            using (var session = client.StartEventPipeSession(config))
+            {
+                var source = new EventPipeEventSource(session.EventStream);
+                RegisterListeners(source);
+
+                // this is a blocking call
+                source.Process();
+            }
         }
 
         private void ProcessEtwEvents()
@@ -281,14 +323,14 @@ namespace Shared
 
             // decide which provider to listen to with filters if needed
             _session.EnableProvider(
-                ClrTraceEventParser.ProviderGuid,  // CLR provider
+                ClrTraceEventParser.ProviderName,  // CLR provider
                 (
                     ((_filter & EventFilter.AllocationTick) == EventFilter.AllocationTick) ||
                     ((_filter & EventFilter.Contention) == EventFilter.Contention)  // for .NET 9
                 )
                 ? TraceEventLevel.Verbose
                 : TraceEventLevel.Informational,
-                GetKeywords(),
+                (ulong)GetKeywords(),
                 options
             );
 
