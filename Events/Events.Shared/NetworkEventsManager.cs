@@ -177,8 +177,6 @@ namespace Shared
             {
                 info.Error = e.Text;
             }
-
-            _requests.Remove(root);
         }
 
         private void OnDnsResolutionStart(object sender, ResolutionStartEventArgs e)
@@ -417,7 +415,7 @@ namespace Shared
         private void OnHttpResponseHeaderStop(object sender, HttpRequestStatusEventArgs e)
         {
             // used to detect redirection in .NET 8+
-            if (e.StatusCode != 301)
+            if ((e.StatusCode < 300) || (e.StatusCode > 308))
             {
                 return;
             }

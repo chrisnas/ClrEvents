@@ -9,7 +9,7 @@
     <ToolCommandName>dotnet-http</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -22,7 +22,7 @@
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Global CLI tool to detail HTTP requests</Description>
-    <PackageReleaseNotes>Initial version</PackageReleaseNotes>
+    <PackageReleaseNotes>Support all redirection codes and fix missing duration when HTTP errors happen.</PackageReleaseNotes>
     <Copyright>Copyright Christophe Nasarre $([System.DateTime]::UtcNow.ToString(yyyy))</Copyright>
     <PackageTags>HTTP HttpClient TraceEvent Perfview</PackageTags>
   </PropertyGroup>
