@@ -22,14 +22,15 @@ namespace dotnet_wait
         private ContentionInfoStore _contentionStore;
         private MethodStore _methods;
         private int _waitThreshold = 0;
-        private bool _isLogging = false;
+        private bool _isLogging = false;  // for debugging purpose only
+        private static string _outputPathname = "";
 
         static async Task Main(string[] args)
         {
             var version = Assembly.GetExecutingAssembly().GetName().Version;
             Console.WriteLine(string.Format(Header, ToolName, version));
 
-            (int pid, string pathName, int waitThreshold) parameters;
+            (int pid, string executablePathname, string arguments, bool suspend, int pidToResume, string outputPathname, int waitThreshold) parameters;
             try
             {
                 parameters = ParseCommandLine(args);
@@ -40,6 +41,8 @@ namespace dotnet_wait
                 Console.WriteLine(string.Format(Help, ToolName));
                 return;
             }
+
+            _outputPathname = parameters.outputPathname;
 
             var runner = new Program();
             runner._waitThreshold = parameters.waitThreshold;
@@ -56,26 +59,132 @@ namespace dotnet_wait
                     return;
                 }
 
-                // spawn an app to get the events from the startup; especially the Jitted methods information
-                await runner.StartAndMonitor(parameters.pathName);
-
+                // we are supporting 3 modes when spawning an application:
+                if (parameters.suspend)
+                {
+                    // 1. -s -- <path of the app to spawn> : the child process is started in the current console and stays suspended
+                    await runner.StartAndSuspend(parameters.executablePathname, parameters.arguments);
+                }
+                else if (parameters.pidToResume != -1)
+                {
+                    // 2. -r <pid of the tool instance used in 2.> : the child process was spawned in another console and we need to resume it
+                    await runner.ResumeAndMonitor(parameters.pidToResume);
+                }
+                else
+                {
+                    // 3. the child process is started in the current console that is shared with us
+                    await runner.StartAndMonitor(parameters.executablePathname, parameters.arguments);
+                }
             }
             catch (TimeoutException)
             {
-                Console.WriteLine($"The process {parameters.pid} is probably not running...");
-                Console.WriteLine(string.Format(Help, ToolName));
+                WriteOutputLine($"The process {parameters.pid} is probably not running...");
+                WriteOutputLine(string.Format(Help, ToolName));
             }
             catch (Exception x)
             {
-                Console.WriteLine(x.Message);
-                Console.WriteLine(string.Format(Help, ToolName));
+                WriteOutputLine(x.Message);
+                WriteOutputLine(string.Format(Help, ToolName));
             }
         }
 
-        private async Task StartAndMonitor(string pathName)
+        private async Task StartAndSuspend(string executablePathName, string arguments = "")
         {
-            var endpoint = await StartMonitoredApp(pathName);
-            var client = new DiagnosticsClient(endpoint);
+            // spawn the child process and don't resume nor monitor it
+            var result = await SpawnApp(executablePathName, arguments);
+
+            Console.WriteLine($"To resume the spawn process, open another console and type: dotnet wait -r {Environment.ProcessId}");
+            // simply return from here; the console is left to the child process
+
+            //// TODO: check if we even need to start a diagnostics session and simply return; leaving the console to the spawn child app
+            //var client = new DiagnosticsClient(result.endpoint);
+            //EventPipeEventSource source = null;
+
+            //var streamTask = Task.Run(() =>
+            //{
+            //    try
+            //    {
+            //        var session = client.StartEventPipeSession(GetProviders(), requestRundown: false);
+            //        source = new EventPipeEventSource(session.EventStream);
+
+            //        // blocking call until the session is disposed
+            //        source.Process();
+            //    }
+            //    catch (Exception x)
+            //    {
+            //        WriteOutputLine(x.Message);
+            //        WriteOutputLine(string.Format(Help, ToolName));
+            //    }
+            //});
+
+            //// Note: don't handle console input in a separate task as we want to keep the console for the child process
+            //streamTask.Wait();  // exit when the child process ends
+        }
+
+        private async Task ResumeAndMonitor(int pid)
+        {
+            // TODO: resume the child process and monitor it
+            // we don't need to filter per process ID because we are only monitoring the one spawn process
+            _contentionStore = new ContentionInfoStore();
+            _contentionStore.AddProcess(0);
+            _methods = new MethodStore(0, loadModules: false);
+
+            // create a new diagnostics client for the process to resume
+            var port = GetDiagnosticsPort(pid);
+            var diagnosticsServer = new ReversedDiagnosticsServer(port);
+            diagnosticsServer.Start();
+            using CancellationTokenSource cancellation = new CancellationTokenSource(10000);
+            var result = await diagnosticsServer.AcceptAsync(cancellation.Token);
+            var client = new DiagnosticsClient(result.Endpoint);
+            EventPipeEventSource source = null;
+
+            var streamTask = Task.Run(() =>
+            {
+                try
+                {
+                    var session = client.StartEventPipeSession(GetProviders(), requestRundown: false);
+                    source = new EventPipeEventSource(session.EventStream);
+                    RegisterListeners(source);
+
+                    client.ResumeRuntime();
+
+                    // blocking call until the session is disposed
+                    source.Process();
+                }
+                catch (Exception x)
+                {
+                    if (x.Source == "Microsoft.Diagnostics.FastSerialization")
+                    {
+                        WriteOutputLine("The monitored process has probably exited...");
+                    }
+                    else
+                    {
+                        WriteOutputLine(x.Message);
+                        WriteOutputLine(string.Format(Help, ToolName));
+                    }
+                }
+            });
+
+            var inputTask = Task.Run(() =>
+            {
+                Console.WriteLine("Press ENTER to exit...");
+                Console.ReadLine();
+                if (source != null)
+                {
+                    source.Dispose();
+                }
+            });
+
+            Task.WaitAny(streamTask, inputTask);  // exit if an error occurs in event processing
+        }
+
+        private async Task StartAndMonitor(string executablePathName, string arguments = "")
+        {
+            var result = await SpawnApp(executablePathName, arguments);
+            _contentionStore = new ContentionInfoStore();
+            _contentionStore.AddProcess(result.childPid);
+            _methods = new MethodStore(result.childPid, loadModules: false);
+            var client = new DiagnosticsClient(result.endpoint);
             EventPipeEventSource source = null;
 
             var streamTask = Task.Run(() =>
@@ -94,8 +203,8 @@ namespace dotnet_wait
                 }
                 catch (Exception x)
                 {
-                    Console.WriteLine(x.Message);
-                    Console.WriteLine(string.Format(Help, ToolName));
+                    WriteOutputLine(x.Message);
+                    WriteOutputLine(string.Format(Help, ToolName));
                 }
             });
 
@@ -153,37 +262,45 @@ namespace dotnet_wait
             return (long)keywords;
         }
 
-        private async Task<IpcEndpoint> StartMonitoredApp(string pathName)
+
+        private string GetDiagnosticsPort(int pid = -1)
         {
-            // create the diagnostics server that will acknowledge the monitored app runtime to connect
-            var name = $"dotnet-wait_{Environment.ProcessId}";
-            var port = (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            var name = (pid == -1) ? $"dotnet-wait_{Environment.ProcessId}" : $"dotnet-wait_{pid}";
+            return (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 ? name
                 : Path.Combine(Path.GetTempPath(), name); // socket name
+        }
+
+
+        private async Task<(IpcEndpoint endpoint, int childPid)> SpawnApp(string pathName, string arguments)
+        {
+            // create the diagnostics server that will acknowledge the monitored app runtime to connect
+            var port = GetDiagnosticsPort();
             var diagnosticsServer = new ReversedDiagnosticsServer(port);
             diagnosticsServer.Start();
-            using CancellationTokenSource cancellation = new CancellationTokenSource(10000);
+            using CancellationTokenSource cancellation = new CancellationTokenSource(100000);
             var acceptTask = diagnosticsServer.AcceptAsync(cancellation.Token);
 
             // start the monitored app
-            // TODO: do not support "dotnet foo.dll" or parameters
             var psi = new ProcessStartInfo(pathName);
+            if (!string.IsNullOrEmpty(arguments))
+            {
+                psi.Arguments = arguments;
+            }
             psi.EnvironmentVariables["DOTNET_DiagnosticPorts"] = port;  // suspend, connect by default
             psi.UseShellExecute = false;
-            psi.CreateNoWindow = true;
-            psi.WindowStyle = ProcessWindowStyle.Normal;
+            //psi.CreateNoWindow = true;
+            //psi.WindowStyle = ProcessWindowStyle.Normal;
+
             //psi.RedirectStandardOutput = false;
             //psi.RedirectStandardError = false;
             //psi.RedirectStandardInput = false;
 
             var process = System.Diagnostics.Process.Start(psi);
-            _contentionStore = new ContentionInfoStore();
-            _contentionStore.AddProcess(process.Id);
-            _methods = new MethodStore(process.Id, loadModules: false);
 
             // wait for the diagnostics server to accept the connection
             var result = await acceptTask;
-            return result.Endpoint;
+            return (result.Endpoint, process.Id);
         }
 
         private void OnMethodDetails(MethodLoadUnloadVerboseTraceData data)
@@ -228,7 +345,7 @@ namespace dotnet_wait
                 WriteLogLine($"   {nbFrames} frames");
             }
 
-            ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
+            ContentionInfo info = _contentionStore.GetContentionInfo(0, data.ThreadID);
             if (info == null)
                 return;
 
@@ -239,7 +356,7 @@ namespace dotnet_wait
 
         private void OnContentionStop(ContentionStopTraceData data)
         {
-            ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
+            ContentionInfo info = _contentionStore.GetContentionInfo(0, data.ThreadID);
             if (info == null)
                 return;
 
@@ -264,17 +381,17 @@ namespace dotnet_wait
             {
                 if (duration.TotalMilliseconds > _waitThreshold)
                 {
-                    Console.WriteLine($"{threadID,7} | {duration.TotalMilliseconds} ms");
+                    WriteOutputLine($"{threadID,7} | {duration.TotalMilliseconds} ms");
                     if (callstack != null)
                     {
                         // show the last frame at the top
                         for (int i = 0; i < callstack.Count; i++)
                         //for (int i = e.Callstack.Count - 1; i > 0; i--)
                         {
-                            Console.WriteLine($"    {callstack[i]}");
+                            WriteOutputLine($"    {callstack[i]}");
                         }
                     }
-                    Console.WriteLine();
+                    WriteOutputLine();
                 }
             }
         }
@@ -307,11 +424,11 @@ namespace dotnet_wait
                 WriteLogLine($"   {nbFrames} frames");
             }
 
-            ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
+            ContentionInfo info = _contentionStore.GetContentionInfo(0, data.ThreadID);
             if (info == null)
                 return;
 
-            //Console.WriteLine($"        {data.ThreadID,8}  | {data.TimeStampRelativeMSec}");
+            //WriteOutputLine($"        {data.ThreadID,8}  | {data.TimeStampRelativeMSec}");
 
             info.TimeStamp = data.TimeStamp;
             info.ContentionStartRelativeMSec = data.TimeStampRelativeMSec;
@@ -320,7 +437,7 @@ namespace dotnet_wait
 
         private void OnWaitHandleWaitStop(WaitHandleWaitStopTraceData data)
         {
-            ContentionInfo info = _contentionStore.GetContentionInfo(data.ProcessID, data.ThreadID);
+            ContentionInfo info = _contentionStore.GetContentionInfo(0, data.ThreadID);
             if (info == null)
                 return;
 
@@ -338,7 +455,7 @@ namespace dotnet_wait
             var duration = TimeSpan.FromMilliseconds(contentionDurationMSec);
             var callstack = SymbolizeStack(info.Stack);
 
-            //Console.WriteLine($"        {data.ThreadID,8}  < {data.TimeStampRelativeMSec} = {duration.TotalMilliseconds} ms");
+            //WriteOutputLine($"        {data.ThreadID,8}  < {data.TimeStampRelativeMSec} = {duration.TotalMilliseconds} ms");
             OnWait(data.TimeStamp, data.ProcessID, data.ThreadID, duration, isManaged, callstack);
         }
 
@@ -358,9 +475,35 @@ namespace dotnet_wait
             }
         }
 
-        private static (int pid, string pathName, int waitThreshold) ParseCommandLine(string[] args)
+        private static void WriteOutputLine(string line = null)
         {
-            (int pid, string pathName, int waitThreshold) parameters = (pid: -1, pathName: "", waitThreshold: 0);
+            if (_outputPathname == "")
+            {
+                if (line != null)
+                {
+                    Console.WriteLine(line);
+                }
+                else
+                {
+                    Console.WriteLine();
+                }
+            }
+            else
+            {
+                if (line != null)
+                {
+                    File.AppendAllText(_outputPathname, line + Environment.NewLine);
+                }
+                else
+                {
+                    File.AppendAllText(_outputPathname, Environment.NewLine);
+                }
+            }
+        }
+
+        private static (int pid, string pathName, string arguments, bool suspend, int pidToResume, string outputPathname, int waitThreshold) ParseCommandLine(string[] args)
+        {
+            (int pid, string pathName, string arguments, bool suspend, int pidToResume, string outputPathname, int waitThreshold) parameters = (pid: -1, pathName: "", arguments: "", suspend: false, pidToResume:-1, outputPathname: "", waitThreshold: 0);
             for (int i = 0; i < args.Length; i++)
             {
                 var current = args[i].ToLower();
@@ -379,14 +522,70 @@ namespace dotnet_wait
                         throw new InvalidOperationException($"Missing pid value...");
                     }
                 }
-                else if (current == "--")
+                else if (current == "-o")
+                {
+                    i++;
+                    if (i < args.Length)
+                    {
+                        parameters.outputPathname = args[i];
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Missing output pathname...");
+                    }
+                }
+                else if (current == "-s")
+                {
+                    parameters.suspend = true;
+                }
+                else if (current == "-r")
+                {
+                    i++;
+                    if (i < args.Length)
+                    {
+                        if (!int.TryParse(args[i], out parameters.pidToResume))
+                        {
+                            throw new InvalidOperationException($"{args[i]} is not a numeric pid");
+                        }
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Missing pid to resume...");
+                    }
+                }
+                else if (current == "--")  // this is supposed to be the last one
                 {
                     i++;
                     if (i < args.Length)
                     {
                         parameters.pathName = args[i];
 
-                        // TODO: use the remaining arguments are the argument for the app to spawn
+                        // use the remaining arguments as the arguments for the child app to spawn
+                        i++;
+                        if (i < args.Length)
+                        {
+                            // from https://github.com/dotnet/diagnostics/blob/main/src/Tools/Common/ReversedServerHelpers/ReversedServerHelpers.cs#L37
+                            parameters.arguments = "";
+                            for (int j = i; j < args.Length; j++)
+                            {
+                                if (args[j].Contains(' '))
+                                {
+                                    parameters.arguments += $"\"{args[j].Replace("\"", "\\\"")}\"";
+                                }
+                                else
+                                {
+                                    parameters.arguments += args[j];
+                                }
+
+                                if (j != args.Length)
+                                {
+                                    parameters.arguments += " ";
+                                }
+                            }
+                        }
+
+                        // no need to look for more arguments
+                        break;
                     }
                     else
                     {
@@ -410,9 +609,31 @@ namespace dotnet_wait
                 }
             }
 
-            if ((parameters.pid == -1) && (parameters.pathName == ""))
+            if ((parameters.pid == -1) && (parameters.pathName == "") && (parameters.pidToResume == -1))
             {
-                throw new InvalidOperationException($"Missing pid or app to execute");
+                throw new InvalidOperationException($"Missing pid or app to execute/resume");
+            }
+
+            // sanity checks
+            // 1. -p and -- cannot be used together
+            // 2. -s and -r cannot be used together
+            // 3. -- cannot be used with -r
+            // 4. -s must be used with --
+            if ((parameters.pid != -1) && (parameters.pathName != ""))
+            {
+                throw new InvalidOperationException("-p and -- cannot be used together");
+            }
+            if (parameters.suspend && (parameters.pidToResume != -1))
+            {
+                throw new InvalidOperationException("-s and -r cannot be used together");
+            }
+            if ((parameters.pidToResume != -1) && (parameters.pathName != ""))
+            {
+                throw new InvalidOperationException("-- cannot be used with -r");
+            }
+            if (parameters.suspend && (parameters.pathName == ""))
+            {
+                throw new InvalidOperationException("-s must be used with -- <application path to be started>");
             }
 
             return parameters;
@@ -423,7 +644,19 @@ namespace dotnet_wait
             "by Christophe Nasarre" + Environment.NewLine
             ;
         private static string Help =
-            "Usage:  {0}  -s <path to an app to spawn>  -w <min wait duration threshold>" + Environment.NewLine +
+            "Usage:  {0}  -w <min wait duration threshold>  -o <file to save the waits details>  " + Environment.NewLine +
+            "             -p <process ID> " + Environment.NewLine +
+            "             -s  -- <path to an app to spawn followed by its command line if needed>" + Environment.NewLine +
+            "             -r <pid of the instance to use with -s> " + Environment.NewLine +
+            "        If the process is already running, use -p <pid>." + Environment.NewLine +
+            "        To spawn a new process, use -- <executable path>" + Environment.NewLine +
+            "        Use -s when you need to start the child process in the current console and get the wait input/output in another one" + Environment.NewLine +
+            "        when you use -r followed by the pid of the process using -s" + Environment.NewLine +
+            "Ex: -p 1234            list all waits for running process 1234" + Environment.NewLine +
+            "    -w 100 -p 1234     list waits lasting more than 100 ms for process 1234" + Environment.NewLine +
+            "    -o waits.txt -- dotnet foo.dll arg1 \"a r g 2\"     start foo.dll with arguments and save the wait details in waits.txt  !!! inputs are shared between the tool and foo !!!" + Environment.NewLine +
+            "    -s -- dotnet foo.dll arg1 \"a r g 2\"   start foo.dll with arguments and wait for the following command line to be run in another console" + Environment.NewLine +
+            "    -r 2468                                 resume foo.dll and output wait details/input in the current console. Note: 2468 is given by the -s command" + Environment.NewLine +
             //"Usage:  {0}  -p <process ID>  -s <path to an app to spawn>  -w <min wait duration threshold>" + Environment.NewLine +
             "";
     }
