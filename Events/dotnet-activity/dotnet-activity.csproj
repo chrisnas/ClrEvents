@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,6 +7,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
+    <RollForward>Major</RollForward>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>dotnet-activity</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
