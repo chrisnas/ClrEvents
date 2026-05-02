@@ -3,13 +3,14 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <RootNamespace>dotnet_http</RootNamespace>
 
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>dotnet-http</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -18,13 +19,15 @@
     <Title>dotnet-http</Title>
     <Authors>Christophe Nasarre</Authors>
     <Owners>chrisnas</Owners>
-    <PackageProjectUrl>https://github.com/chrisnas/ClrEvents</PackageProjectUrl>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Global CLI tool to detail HTTP requests</Description>
-    <PackageReleaseNotes>Support all redirection codes and fix missing duration when HTTP errors happen.</PackageReleaseNotes>
     <Copyright>Copyright Christophe Nasarre $([System.DateTime]::UtcNow.ToString(yyyy))</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/chrisnas/ClrEvents</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/chrisnas/ClrEvents</RepositoryUrl>
     <PackageTags>HTTP HttpClient TraceEvent Perfview</PackageTags>
+    <PackageReleaseNotes>Upgrade references version and support newer .NET versions.</PackageReleaseNotes>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
