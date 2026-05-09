@@ -1,29 +1,35 @@
 # ClrEvents
+
 Source code based on TraceEvent to listen to CLR events at runtime.
 
 ## Introduction
+
 Most of the code is detailed in the blog series related to CLR events:
 
-Part 1: [Replace .NET performance counters by CLR event tracing.](http://labs.criteo.com/2018/06/replace-net-performance-counters-by-clr-event-tracing/)
+Part 1: [Replace .NET performance counters by CLR event tracing.](https://chrisnas.github.io/posts/2018-06-19_replace-net-performance-counters/)
 
-Part 2: [Grab ETW Session, Providers and Events.](http://labs.criteo.com/2018/07/grab-etw-session-providers-and-events/)
+Part 2: [Grab ETW Session, Providers and Events.](https://chrisnas.github.io/posts/2018-07-26_grab-etw-session-providers/)
 
-Part 3: [Monitor Finalizers, contention and threads in your application.](http://labs.criteo.com/2018/09/monitor-finalizers-contention-and-threads-in-your-application/)
+Part 3: [Monitor Finalizers, contention and threads in your application.](https://chrisnas.github.io/posts/2018-09-28_monitor-finalizers-contention-threads/)
 
-Part 4: [Spying on .NET Garbage Collector with TraceEvent.](https://medium.com/@chnasarre/spying-on-net-garbage-collector-with-traceevent-f49dc3117de)
+Part 4: [Spying on .NET Garbage Collector with TraceEvent.](https://chrisnas.github.io/posts/2018-12-15_spying-on-net-garbage/)
 
-Part 5: [Building your own Java-like GC logs in .NET.](https://medium.com/@chnasarre/c-building-your-own-java-like-gc-logs-in-net-992205fd8d4f)
+Part 5: [Building your own Java-like GC logs in .NET.](https://chrisnas.github.io/posts/2019-02-12_building-your-own-java/)
 
-Part 6: [Spying on .NET Garbage Collector with .NET Core EventPipes](https://medium.com/@chnasarre/spying-on-net-garbage-collector-with-net-core-eventpipes-9f2a986d5705)
+Part 6: [Spying on .NET Garbage Collector with .NET Core EventPipes](https://chrisnas.github.io/posts/2019-05-28_spying-on-net-garbage/)
 
-Part 7: [.NET Core Counters internals: how to integrate counters in your monitoring pipeline](https://medium.com/@chnasarre/net-core-counters-internals-how-to-integrate-counters-in-your-monitoring-pipeline-5354cd61b42e)
+Part 7: [.NET Core Counters internals: how to integrate counters in your monitoring pipeline](https://chrisnas.github.io/posts/2019-07-23_net-core-counters-internals/)
 
-Part 8: [How to expose your custom counters in .NET Core](https://medium.com/@chnasarre/how-to-expose-your-custom-counters-in-net-core-5dcedcc2ccb6)
+Part 8: [How to expose your custom counters in .NET Core](https://chrisnas.github.io/posts/2019-10-17_how-to-expose-your/)
 
-Part 9: [Build your own .NET memory profiler in C# - allocations(1/2)](https://medium.com/@chnasarre/build-your-own-net-memory-profiler-in-c-allocations-1-2-9c9f0c86cefd)
+Part 9: [Build your own .NET memory profiler in C# - allocations(1/2)](https://chrisnas.github.io/posts/2020-04-18_build-your-own-net/)
 
+Part 10: [Build your own .NET memory profiler in C# - call stacks(2/2-1)](https://chrisnas.github.io/posts/2020-05-18_build-your-own-net/)
+
+Part 11: [Build your own .NET memory profiler in C# - call stacks(2/2-2)]((https://chrisnas.github.io/posts/2020-06-19_build-your-own-net/)
 
 ## Source Code
+
 The `Events\ClrEtw` Visual Studio solution contains different projects:
 
 1. `Events.Shared`: .NET Standard assembly to easily listen to CLR events with TraceEvent (.NET Core and Framework) or EventPipe (.NET Core only). 
@@ -35,6 +41,7 @@ The `Events\ClrEtw` Visual Studio solution contains different projects:
 4. `Simulator`: Console application used to simulate interesting behaviours (contention, exceptions, allocations, thread pool usage).
 
 5. `GcLog`: Helper classes to generate a log file containing one line per garbage collection happening in a .NET Application given its process ID.
+   
                     EtwGcLog is based on TraceEvent and listen to ETW events.
 
 6. `GcLogger`: Console application used to test GcLog.
@@ -49,18 +56,17 @@ The `Events\ClrEtw` Visual Studio solution contains different projects:
 
 11. `dotnet-http`: CLI tool to monitor HTTP requests live
 
-
 The `Counters\EventPipeCounters` Visual Studio solution contains different projets
+
 1. `Counters.RuntimeClient`: Helper classes to easily get .NET Core counters; including .csv file automatic creation.
 
 2. `SimpleCounters`: sample application to use CsvCounterListener and CounterMonitor helper classes.
 
 3. `CountersWebApp`: sample ASP.NET Core application to demonstrate custom counters about count/duration of requests processed with(out) GC.
 
-
 Projects dependecies:
 
 - [TraceEvent](https://www.nuget.org/packages/Microsoft.Diagnostics.Tracing.TraceEvent/): C# library to listen to CLR events.
-Source code is available on [Github](https://github.com/Microsoft/perfview/tree/master/src/TraceEvent).
+  Source code is available on [Github](https://github.com/Microsoft/perfview/tree/master/src/TraceEvent).
 
 - Microsoft.Diagnostics.Tools.RuntimeClient: copied from [github](https://github.com/dotnet/diagnostics/tree/master/src/Microsoft.Diagnostics.Tools.RuntimeClient) because it is supporting both ETW and EventPipe. For EventPipe only, use [Microsoft.Diagnostics.NETCore.Client](https://www.nuget.org/packages/Microsoft.Diagnostics.NETCore.Client)
